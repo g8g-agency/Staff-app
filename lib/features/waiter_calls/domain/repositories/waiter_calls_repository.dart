@@ -11,4 +11,8 @@ abstract class WaiterCallsRepository {
 
   Future<void> applyRemoteCallUpdate(WaiterCall call);
   Future<void> applyRemoteCallDelete(String callId);
+
+  // New sync methods for deterministic projection
+  Future<void> syncWaiterCalls(List<WaiterCall> calls);
+  Future<List<WaiterCall>> fetchActiveCalls();
 }

@@ -10,4 +10,8 @@ abstract class OrdersRepository {
 
   Future<void> applyRemoteOrderUpdate(Order order);
   Future<void> applyRemoteOrderDelete(String orderId);
+
+  // New sync methods for deterministic projection
+  Future<void> syncOrders(List<Order> orders);
+  Future<List<Order>> fetchActiveOrders();
 }
