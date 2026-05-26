@@ -17,7 +17,7 @@ class ProjectionRegistration {
   final Set<String> dependencies;
   final int priority;
 
-  const ProjectionRegistration({
+  ProjectionRegistration({
     required this.projectionKey,
     required this.rebuilder,
     this.dependencies = const {},
@@ -42,6 +42,17 @@ class ProjectionRebuildEngine {
     _rebuildingProjections.remove(projectionKey);
     _lastRebuildTimes.remove(projectionKey);
     debugPrint('[ProjectionRebuildEngine] Unregistered projection: $projectionKey');
+  }
+
+  /// Trigger a full rebuild of all registered projections.
+  Future<void> triggerFullRebuild() async {
+    debugPrint('[ProjectionRebuildEngine] Triggering FULL rebuild of all projections');
+    final allKeys = _registrations.keys.toSet();
+    final rebuildOrder = _resolveRebuildOrder(allKeys);
+    
+    for (final projectionKey in rebuildOrder) {
+      await _rebuildProjection(projectionKey);
+    }
   }
 
   /// Rebuild projections based on invalidation records.

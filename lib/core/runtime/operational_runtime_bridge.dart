@@ -24,7 +24,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'domain/runtime_event.dart';
 import 'operational_runtime_hydrator.dart';
-import 'domain/invalidation_rule.dart';
 import 'runtime_orchestrator.dart';
 import 'deterministic_projection_store.dart';
 import 'mutation_acknowledgement_manager.dart';
@@ -36,8 +35,6 @@ import '../../features/auth/presentation/state/auth_notifier.dart';
 import '../../features/manager/presentation/state/manager_providers.dart';
 import '../../features/reservations/presentation/state/reservations_notifier.dart';
 import '../../features/realtime/presentation/state/realtime_providers.dart';
-import '../../features/kitchen/presentation/state/kitchen_runtime_coordinator.dart';
-import '../../features/kitchen/presentation/state/kitchen_projections.dart';
 
 import '../../features/orders/providers/orders_providers.dart';
 import '../../features/tables/providers/tables_providers.dart';
