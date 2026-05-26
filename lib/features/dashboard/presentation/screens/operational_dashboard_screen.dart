@@ -8,10 +8,12 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../auth/presentation/state/auth_notifier.dart';
 import '../../../tables/presentation/state/table_grid_notifier.dart';
-import '../../../kitchen/presentation/state/kitchen_queue_notifier.dart';
+import '../../../kitchen/presentation/state/kitchen_runtime_providers.dart';
 import '../../../tables/domain/entities/restaurant_table.dart';
 import '../../../orders/domain/entities/order.dart';
 import '../../../auth/domain/entities/branch.dart';
+import '../../../realtime/presentation/widgets/diagnostics/degraded_mode_coordinator_widget.dart';
+import '../../../../core/runtime/diagnostics/operational_health_publisher.dart';
 
 class OperationalDashboardScreen extends ConsumerStatefulWidget {
   const OperationalDashboardScreen({super.key});
@@ -77,8 +79,6 @@ class _OperationalDashboardScreenState extends ConsumerState<OperationalDashboar
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
     final tablesAsync = ref.watch(tableGridNotifierProvider);
-    final kitchenAsync = ref.watch(kitchenQueueNotifierProvider);
-    
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
@@ -101,15 +101,12 @@ class _OperationalDashboardScreenState extends ConsumerState<OperationalDashboar
       alertTables = alertList.length;
     });
 
-    int preparingOrdersCount = 0;
-    int readyOrdersCount = 0;
-    int completedOrdersCount = 0;
-    kitchenAsync.whenData((orders) {
-      preparingOrdersCount = orders.where((o) => o.status == OrderStatus.preparing || o.status == OrderStatus.sent).length;
-      readyOrdersCount = orders.where((o) => o.status == OrderStatus.ready).length;
-      completedOrdersCount = orders.where((o) => o.status == OrderStatus.completed).length;
-    });
-
+    final preparingTickets = ref.watch(preparingTicketsProvider);
+    final readyTickets = ref.watch(readyTicketsProvider);
+    final int preparingCount = preparingTickets.length;
+    final int readyCount = readyTickets.length;
+    // We don't have completedOrdersCount modeled in the projection yet, so we mock it.
+    final int completedOrdersCount = 0;
     // Section load calculations
     Map<String, Map<String, dynamic>> sectionStats = {
       'Patio': {'total': 0, 'occupied': 0, 'range': 'T1-T3'},
@@ -198,58 +195,67 @@ class _OperationalDashboardScreenState extends ConsumerState<OperationalDashboar
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(AppSpacing.md(context)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Welcome Section
-              if (staff != null) ...[
-                _buildWelcomeSection(context, staff, isDark),
-                SizedBox(height: AppSpacing.lg(context)),
-              ],
+        child: Column(
+          children: [
+            // High-visibility runtime diagnostics banner
+            const DegradedModeCoordinatorWidget(),
+            
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(AppSpacing.md(context)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Welcome Section
+                    if (staff != null) ...[
+                      _buildWelcomeSection(context, staff, isDark),
+                      SizedBox(height: AppSpacing.lg(context)),
+                    ],
 
-              // Quick Stats Grid
-              _buildQuickStatsGrid(
-                context,
-                totalTables: totalTables,
-                occupiedTables: occupiedTables,
-                availableTables: availableTables,
-                alertTables: alertTables,
-                preparingOrders: preparingOrdersCount,
-                readyOrders: readyOrdersCount,
-                completedOrders: completedOrdersCount,
-                isDark: isDark,
+                    // Quick Stats Grid
+                    _buildQuickStatsGrid(
+                      context,
+                      totalTables: totalTables,
+                      occupiedTables: occupiedTables,
+                      availableTables: availableTables,
+                      alertTables: alertTables,
+                      preparingOrders: preparingCount,
+                      readyOrders: readyCount,
+                      completedOrders: completedOrdersCount,
+                      isDark: isDark,
+                    ),
+                    
+                    SizedBox(height: AppSpacing.lg(context)),
+
+                    // Service Alerts Section
+                    if (alertList.isNotEmpty) ...[
+                      _buildServiceAlertsSection(context, alertList, ref, isDark),
+                      SizedBox(height: AppSpacing.lg(context)),
+                    ],
+
+                    // Section Occupancy
+                    _buildSectionOccupancy(context, sectionStats, isDark),
+                    
+                    SizedBox(height: AppSpacing.lg(context)),
+
+                    // Kitchen Status
+                    _buildKitchenStatus(
+                      context,
+                      preparing: preparingCount,
+                      ready: readyCount,
+                      completed: completedOrdersCount,
+                      isDark: isDark,
+                    ),
+                    
+                    SizedBox(height: AppSpacing.lg(context)),
+
+                    // Activity Feed
+                    _buildActivityFeed(context, isDark),
+                  ],
+                ),
               ),
-              
-              SizedBox(height: AppSpacing.lg(context)),
-
-              // Service Alerts Section
-              if (alertList.isNotEmpty) ...[
-                _buildServiceAlertsSection(context, alertList, ref, isDark),
-                SizedBox(height: AppSpacing.lg(context)),
-              ],
-
-              // Section Occupancy
-              _buildSectionOccupancy(context, sectionStats, isDark),
-              
-              SizedBox(height: AppSpacing.lg(context)),
-
-              // Kitchen Status
-              _buildKitchenStatus(
-                context,
-                preparing: preparingOrdersCount,
-                ready: readyOrdersCount,
-                completed: completedOrdersCount,
-                isDark: isDark,
-              ),
-              
-              SizedBox(height: AppSpacing.lg(context)),
-
-              // Activity Feed
-              _buildActivityFeed(context, isDark),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

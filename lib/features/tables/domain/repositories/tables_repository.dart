@@ -10,4 +10,8 @@ abstract class TablesRepository {
 
   Future<void> applyRemoteTableUpdate(RestaurantTable table);
   Future<void> applyRemoteTableDelete(String tableId);
+
+  // New sync methods for deterministic projection
+  Future<void> syncTables(List<RestaurantTable> tables);
+  Future<List<RestaurantTable>> fetchTables();
 }

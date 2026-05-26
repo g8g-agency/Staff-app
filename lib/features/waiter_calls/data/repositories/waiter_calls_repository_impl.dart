@@ -263,4 +263,16 @@ class WaiterCallsRepositoryImpl implements WaiterCallsRepository {
     _inMemoryCalls.removeWhere((c) => c.id == callId);
     _emit();
   }
+
+  @override
+  Future<void> syncWaiterCalls(List<WaiterCall> calls) async {
+    _inMemoryCalls.clear();
+    _inMemoryCalls.addAll(calls);
+    _emit();
+  }
+
+  @override
+  Future<List<WaiterCall>> fetchActiveCalls() async {
+    return _inMemoryCalls.where((c) => c.status != CallStatus.resolved).toList();
+  }
 }

@@ -58,4 +58,21 @@ class OrdersRepositoryImpl implements OrdersRepository {
       return index != -1 ? list[index].toDomain() : null;
     });
   }
+
+  @override
+  Future<void> syncOrders(List<Order> orders) async {
+    final dtos = orders.map((o) => o.toDto()).toList();
+    await local.cacheOrders(dtos);
+  }
+
+  @override
+  Future<List<Order>> fetchActiveOrders() async {
+    // In a real implementation this would fetch from a remote API.
+    // For this simulation, we'll just return what's in the local cache.
+    final cached = await local.getCachedOrders();
+    return cached
+        .map((dto) => dto.toDomain())
+        .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled)
+        .toList();
+  }
 }

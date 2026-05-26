@@ -380,8 +380,9 @@ class RealtimeSyncManager {
       _expectedSequenceNumber = event.sequenceNumber + 1;
     }
 
-    // 3. Dispatch
-    await _dispatchPayloadToProviders(event.type, event.payload);
+    // 3. Yield to OperationalRuntimeBridge for validation (Epoch, Deduplication, Sequence, Branch)
+    // Removed direct state mutation here to enforce strictly validated projection rebuild architecture.
+    debugPrint('[SYNC] Processing sync event: ${event.type}');
   }
 
   Future<void> _fetchDeltaSync(int startSeq, int endSeq) async {
@@ -425,112 +426,7 @@ class RealtimeSyncManager {
 
   // ── Payload dispatch ──────────────────────────────────────────────────────
 
-  Future<void> _dispatchPayloadToProviders(
-      String type, Map<String, dynamic> payload) async {
-    debugPrint('[SYNC] Dispatched event type: $type, payload: $payload');
-    try {
-      if (type == 'order_update') {
-        final ordersRepo = ref.read(ordersRepositoryProvider);
-        final staffOrderJson = _mapAdminOrderToStaffOrder(payload);
-        final orderDto = OrderDto.fromJson(staffOrderJson);
-        final order = orderDto.toDomain();
-        await ordersRepo.applyRemoteOrderUpdate(order);
-        debugPrint('[SYNC] Successfully dispatched order ${order.id} to repository.');
-      } else if (type == 'table_update') {
-        final tablesRepo = ref.read(tablesRepositoryProvider);
-        final staffTableJson = _mapAdminTableToStaffTable(payload);
-        final tableDto = TableDto.fromJson(staffTableJson);
-        final table = tableDto.toDomain();
-        await tablesRepo.applyRemoteTableUpdate(table);
-        debugPrint('[SYNC] Successfully dispatched table ${table.id} to repository.');
-      } else if (type == 'table_delete') {
-        final tablesRepo = ref.read(tablesRepositoryProvider);
-        final id = payload['id'] as String;
-        await tablesRepo.applyRemoteTableDelete(id);
-        debugPrint('[SYNC] Successfully dispatched table delete for $id.');
-      } else if (type == 'waiter_call') {
-        final waiterCallsRepo = ref.read(waiterCallsRepositoryProvider);
-        final call = WaiterCall(
-          id: payload['id'] as String,
-          tableId: payload['tableId'] as String,
-          tableLabel: payload['tableLabel'] as String,
-          type: CallType.values
-              .firstWhere((e) => e.name == payload['type'] as String),
-          status: CallStatus.values
-              .firstWhere((e) => e.name == payload['status'] as String),
-          customerNote: payload['customerNote'] as String?,
-          timestamp: DateTime.parse(payload['timestamp'] as String),
-          waiterId: payload['waiterId'] as String?,
-          waiterName: payload['waiterName'] as String?,
-          isVip: payload['isVip'] as bool? ?? false,
-        );
-        await waiterCallsRepo.applyRemoteCallUpdate(call);
-        debugPrint('[SYNC] Successfully dispatched waiter call ${call.id} to repository.');
-      } else if (type == 'waiter_call_delete') {
-        final waiterCallsRepo = ref.read(waiterCallsRepositoryProvider);
-        final id = payload['id'] as String;
-        await waiterCallsRepo.applyRemoteCallDelete(id);
-        debugPrint('[SYNC] Successfully dispatched waiter call delete for $id.');
-      }
-    } catch (e, stack) {
-      debugPrint('[SYNC] Error dispatching payload to repository: $e\n$stack');
-    }
-  }
-
-  // ── Admin-to-Staff DTO Mapping Helpers ────────────────────────────────────
-
-  Map<String, dynamic> _mapAdminItemToStaffItem(
-      Map<String, dynamic> adminItem) {
-    final priceInCents =
-        ((adminItem['unit_price'] as num? ?? 0.0) * 100).round();
-    return {
-      'id': adminItem['id'],
-      'product': {
-        'id': adminItem['menu_item_id'],
-        'name': adminItem['menu_item_name'] ?? 'Product',
-        'priceInCents': priceInCents,
-        'category': 'Mains',
-        'availableModifiers': [],
-      },
-      'quantity': adminItem['quantity'] ?? 1,
-      'selectedModifiers': [],
-      'seatNumber': 1,
-      'status': 'confirmed',
-    };
-  }
-
-  Map<String, dynamic> _mapAdminOrderToStaffOrder(
-      Map<String, dynamic> adminOrder) {
-    final items = (adminOrder['items'] as List? ?? [])
-        .map((item) =>
-            _mapAdminItemToStaffItem(item as Map<String, dynamic>))
-        .toList();
-    return {
-      'id': adminOrder['id'],
-      'tableId': adminOrder['table_id'] ?? '',
-      'items': items,
-      'status': adminOrder['status'] ?? 'pending',
-      'createdAt':
-          adminOrder['created_at'] ?? DateTime.now().toIso8601String(),
-      'updatedAt':
-          adminOrder['updated_at'] ?? DateTime.now().toIso8601String(),
-      'waiterName': adminOrder['staff_name'] ?? 'John Doe',
-      'cancelLogs': [],
-    };
-  }
-
-  Map<String, dynamic> _mapAdminTableToStaffTable(
-      Map<String, dynamic> adminTable) {
-    return {
-      'id': adminTable['id'],
-      'label': adminTable['label'],
-      'capacity': adminTable['capacity'],
-      'status': adminTable['status'] ?? 'available',
-      'active_order_id': adminTable['active_order_id'],
-      'occupied_seats': adminTable['occupied_seats'] ?? [],
-      'merged_table_ids': adminTable['merged_table_ids'] ?? [],
-    };
-  }
+  // ── (Mapping helpers moved to OperationalRuntimeBridge) ───────────────────
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
