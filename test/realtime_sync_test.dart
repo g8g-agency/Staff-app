@@ -12,6 +12,9 @@ import 'package:orderlyy_app/core/network/network_providers.dart';
 import 'package:orderlyy_app/core/network/offline_queue.dart';
 import 'package:orderlyy_app/features/tables/data/datasources/remote/tables_remote_datasource.dart';
 import 'package:orderlyy_app/features/tables/data/dtos/table_dto.dart';
+import 'package:orderlyy_app/core/config/app_config.dart';
+import 'package:orderlyy_app/core/config/environment.dart';
+import 'package:orderlyy_app/core/runtime/operational_runtime_bridge.dart';
 
 // Mock classes for testing
 class MockTablesRemoteDatasource implements TablesRemoteDatasource {
@@ -85,6 +88,13 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       
+      AppConfig.initialize(
+        environment: Environment.dev,
+        apiBaseUrl: 'http://localhost:8000',
+        websocketUrl: 'ws://localhost:8000',
+        enableSentry: false,
+      );
+      
       mockRemote = MockTablesRemoteDatasource();
       mockNetwork = MockNetworkInfo();
       mockOfflineQueue = MockOfflineQueueManager();
@@ -96,6 +106,15 @@ void main() {
           networkInfoProvider.overrideWithValue(mockNetwork),
           offlineQueueManagerProvider.overrideWithValue(mockOfflineQueue),
         ],
+      );
+
+      // Initialize the bridge to listen to sync events
+      container.read(operationalRuntimeBridgeProvider);
+
+      // Start orchestrator session with defaults matching bridge expectations
+      container.read(runtimeOrchestratorProvider).startSession(
+        branchId: 'branch_default',
+        staffId: 'test_staff_123',
       );
     });
 

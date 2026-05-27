@@ -149,7 +149,7 @@ class DeterministicProjectionStore {
       'occupied_seats': payload['occupied_seats'] ?? [],
       'merged_table_ids': payload['merged_table_ids'] ?? [],
     };
-    return TableDto.fromJson(staffTableJson).toDomain();
+    return TableDto.fromMap(staffTableJson).toDomain();
   }
 
   WaiterCall _parseWaiterCall(Map<String, dynamic> payload) {

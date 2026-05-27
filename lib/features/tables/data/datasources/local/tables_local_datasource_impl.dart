@@ -22,7 +22,7 @@ class TablesLocalDatasourceImpl implements TablesLocalDatasource {
     if (raw == null) return [];
     try {
       final decoded = jsonDecode(raw) as List;
-      return decoded.map((e) => TableDto.fromJson(e as Map<String, dynamic>)).toList();
+      return decoded.map((e) => TableDto.fromMap(e as Map<String, dynamic>)).toList();
     } catch (_) {
       return [];
     }

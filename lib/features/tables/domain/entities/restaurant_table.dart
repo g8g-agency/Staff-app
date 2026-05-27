@@ -7,6 +7,9 @@ enum TableStatus {
   reserved,
   needsAttention,
   cleaning,
+  unknown,
+  projectionPending,
+  recovering,
 }
 
 class GuestSeat extends Equatable {

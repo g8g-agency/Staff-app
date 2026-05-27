@@ -40,6 +40,7 @@ _TableDto _$TableDtoFromJson(Map<String, dynamic> json) => _TableDto(
           ?.map((e) => e as String)
           .toList() ??
       const [],
+  versionNum: (json['version_num'] as num?)?.toInt() ?? 1,
 );
 
 Map<String, dynamic> _$TableDtoToJson(_TableDto instance) => <String, dynamic>{
@@ -50,4 +51,5 @@ Map<String, dynamic> _$TableDtoToJson(_TableDto instance) => <String, dynamic>{
   'active_order_id': instance.activeOrderId,
   'occupied_seats': instance.occupiedSeats,
   'merged_table_ids': instance.mergedTableIds,
+  'version_num': instance.versionNum,
 };

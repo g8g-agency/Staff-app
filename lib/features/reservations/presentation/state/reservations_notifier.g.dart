@@ -26,7 +26,7 @@ final reservationsRepositoryProvider =
 // ignore: unused_element
 typedef ReservationsRepositoryRef = ProviderRef<ReservationsRepository>;
 String _$reservationsNotifierHash() =>
-    r'a3bc600a73d4c92fea160157bb797520b340afc0';
+    r'cd9714f6ca7c16c16bb021e04faa5632c4c7baed';
 
 /// See also [ReservationsNotifier].
 @ProviderFor(ReservationsNotifier)

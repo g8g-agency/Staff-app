@@ -28,6 +28,10 @@ class TableCard extends StatelessWidget {
         return AppColors.error;
       case TableStatus.cleaning:
         return Colors.blueAccent;
+      case TableStatus.unknown:
+      case TableStatus.projectionPending:
+      case TableStatus.recovering:
+        return Colors.grey;
     }
   }
 
@@ -43,6 +47,12 @@ class TableCard extends StatelessWidget {
         return 'Alert';
       case TableStatus.cleaning:
         return 'Cleaning';
+      case TableStatus.unknown:
+        return 'Unknown';
+      case TableStatus.projectionPending:
+        return 'Pending';
+      case TableStatus.recovering:
+        return 'Recovering';
     }
   }
 

@@ -290,7 +290,7 @@ as List<String>,
 /// @nodoc
 mixin _$TableDto {
 
- String get id; String get label; int get capacity; String get status;@JsonKey(name: 'active_order_id') String? get activeOrderId;@JsonKey(name: 'occupied_seats') List<GuestSeatDto> get occupiedSeats;@JsonKey(name: 'merged_table_ids') List<String> get mergedTableIds;
+ String get id; String get label; int get capacity; String get status;@JsonKey(name: 'active_order_id') String? get activeOrderId;@JsonKey(name: 'occupied_seats') List<GuestSeatDto> get occupiedSeats;@JsonKey(name: 'merged_table_ids') List<String> get mergedTableIds;@JsonKey(name: 'version_num') int get versionNum;
 /// Create a copy of TableDto
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -303,16 +303,16 @@ $TableDtoCopyWith<TableDto> get copyWith => _$TableDtoCopyWithImpl<TableDto>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TableDto&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.capacity, capacity) || other.capacity == capacity)&&(identical(other.status, status) || other.status == status)&&(identical(other.activeOrderId, activeOrderId) || other.activeOrderId == activeOrderId)&&const DeepCollectionEquality().equals(other.occupiedSeats, occupiedSeats)&&const DeepCollectionEquality().equals(other.mergedTableIds, mergedTableIds));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TableDto&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.capacity, capacity) || other.capacity == capacity)&&(identical(other.status, status) || other.status == status)&&(identical(other.activeOrderId, activeOrderId) || other.activeOrderId == activeOrderId)&&const DeepCollectionEquality().equals(other.occupiedSeats, occupiedSeats)&&const DeepCollectionEquality().equals(other.mergedTableIds, mergedTableIds)&&(identical(other.versionNum, versionNum) || other.versionNum == versionNum));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,label,capacity,status,activeOrderId,const DeepCollectionEquality().hash(occupiedSeats),const DeepCollectionEquality().hash(mergedTableIds));
+int get hashCode => Object.hash(runtimeType,id,label,capacity,status,activeOrderId,const DeepCollectionEquality().hash(occupiedSeats),const DeepCollectionEquality().hash(mergedTableIds),versionNum);
 
 @override
 String toString() {
-  return 'TableDto(id: $id, label: $label, capacity: $capacity, status: $status, activeOrderId: $activeOrderId, occupiedSeats: $occupiedSeats, mergedTableIds: $mergedTableIds)';
+  return 'TableDto(id: $id, label: $label, capacity: $capacity, status: $status, activeOrderId: $activeOrderId, occupiedSeats: $occupiedSeats, mergedTableIds: $mergedTableIds, versionNum: $versionNum)';
 }
 
 
@@ -323,7 +323,7 @@ abstract mixin class $TableDtoCopyWith<$Res>  {
   factory $TableDtoCopyWith(TableDto value, $Res Function(TableDto) _then) = _$TableDtoCopyWithImpl;
 @useResult
 $Res call({
- String id, String label, int capacity, String status,@JsonKey(name: 'active_order_id') String? activeOrderId,@JsonKey(name: 'occupied_seats') List<GuestSeatDto> occupiedSeats,@JsonKey(name: 'merged_table_ids') List<String> mergedTableIds
+ String id, String label, int capacity, String status,@JsonKey(name: 'active_order_id') String? activeOrderId,@JsonKey(name: 'occupied_seats') List<GuestSeatDto> occupiedSeats,@JsonKey(name: 'merged_table_ids') List<String> mergedTableIds,@JsonKey(name: 'version_num') int versionNum
 });
 
 
@@ -340,7 +340,7 @@ class _$TableDtoCopyWithImpl<$Res>
 
 /// Create a copy of TableDto
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? label = null,Object? capacity = null,Object? status = null,Object? activeOrderId = freezed,Object? occupiedSeats = null,Object? mergedTableIds = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? label = null,Object? capacity = null,Object? status = null,Object? activeOrderId = freezed,Object? occupiedSeats = null,Object? mergedTableIds = null,Object? versionNum = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
@@ -349,7 +349,8 @@ as int,status: null == status ? _self.status : status // ignore: cast_nullable_t
 as String,activeOrderId: freezed == activeOrderId ? _self.activeOrderId : activeOrderId // ignore: cast_nullable_to_non_nullable
 as String?,occupiedSeats: null == occupiedSeats ? _self.occupiedSeats : occupiedSeats // ignore: cast_nullable_to_non_nullable
 as List<GuestSeatDto>,mergedTableIds: null == mergedTableIds ? _self.mergedTableIds : mergedTableIds // ignore: cast_nullable_to_non_nullable
-as List<String>,
+as List<String>,versionNum: null == versionNum ? _self.versionNum : versionNum // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 
@@ -434,10 +435,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String label,  int capacity,  String status, @JsonKey(name: 'active_order_id')  String? activeOrderId, @JsonKey(name: 'occupied_seats')  List<GuestSeatDto> occupiedSeats, @JsonKey(name: 'merged_table_ids')  List<String> mergedTableIds)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String label,  int capacity,  String status, @JsonKey(name: 'active_order_id')  String? activeOrderId, @JsonKey(name: 'occupied_seats')  List<GuestSeatDto> occupiedSeats, @JsonKey(name: 'merged_table_ids')  List<String> mergedTableIds, @JsonKey(name: 'version_num')  int versionNum)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TableDto() when $default != null:
-return $default(_that.id,_that.label,_that.capacity,_that.status,_that.activeOrderId,_that.occupiedSeats,_that.mergedTableIds);case _:
+return $default(_that.id,_that.label,_that.capacity,_that.status,_that.activeOrderId,_that.occupiedSeats,_that.mergedTableIds,_that.versionNum);case _:
   return orElse();
 
 }
@@ -455,10 +456,10 @@ return $default(_that.id,_that.label,_that.capacity,_that.status,_that.activeOrd
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String label,  int capacity,  String status, @JsonKey(name: 'active_order_id')  String? activeOrderId, @JsonKey(name: 'occupied_seats')  List<GuestSeatDto> occupiedSeats, @JsonKey(name: 'merged_table_ids')  List<String> mergedTableIds)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String label,  int capacity,  String status, @JsonKey(name: 'active_order_id')  String? activeOrderId, @JsonKey(name: 'occupied_seats')  List<GuestSeatDto> occupiedSeats, @JsonKey(name: 'merged_table_ids')  List<String> mergedTableIds, @JsonKey(name: 'version_num')  int versionNum)  $default,) {final _that = this;
 switch (_that) {
 case _TableDto():
-return $default(_that.id,_that.label,_that.capacity,_that.status,_that.activeOrderId,_that.occupiedSeats,_that.mergedTableIds);case _:
+return $default(_that.id,_that.label,_that.capacity,_that.status,_that.activeOrderId,_that.occupiedSeats,_that.mergedTableIds,_that.versionNum);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -475,10 +476,10 @@ return $default(_that.id,_that.label,_that.capacity,_that.status,_that.activeOrd
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String label,  int capacity,  String status, @JsonKey(name: 'active_order_id')  String? activeOrderId, @JsonKey(name: 'occupied_seats')  List<GuestSeatDto> occupiedSeats, @JsonKey(name: 'merged_table_ids')  List<String> mergedTableIds)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String label,  int capacity,  String status, @JsonKey(name: 'active_order_id')  String? activeOrderId, @JsonKey(name: 'occupied_seats')  List<GuestSeatDto> occupiedSeats, @JsonKey(name: 'merged_table_ids')  List<String> mergedTableIds, @JsonKey(name: 'version_num')  int versionNum)?  $default,) {final _that = this;
 switch (_that) {
 case _TableDto() when $default != null:
-return $default(_that.id,_that.label,_that.capacity,_that.status,_that.activeOrderId,_that.occupiedSeats,_that.mergedTableIds);case _:
+return $default(_that.id,_that.label,_that.capacity,_that.status,_that.activeOrderId,_that.occupiedSeats,_that.mergedTableIds,_that.versionNum);case _:
   return null;
 
 }
@@ -489,8 +490,8 @@ return $default(_that.id,_that.label,_that.capacity,_that.status,_that.activeOrd
 /// @nodoc
 @JsonSerializable()
 
-class _TableDto implements TableDto {
-  const _TableDto({required this.id, required this.label, required this.capacity, required this.status, @JsonKey(name: 'active_order_id') this.activeOrderId, @JsonKey(name: 'occupied_seats') final  List<GuestSeatDto> occupiedSeats = const [], @JsonKey(name: 'merged_table_ids') final  List<String> mergedTableIds = const []}): _occupiedSeats = occupiedSeats,_mergedTableIds = mergedTableIds;
+class _TableDto extends TableDto {
+  const _TableDto({required this.id, required this.label, required this.capacity, required this.status, @JsonKey(name: 'active_order_id') this.activeOrderId, @JsonKey(name: 'occupied_seats') final  List<GuestSeatDto> occupiedSeats = const [], @JsonKey(name: 'merged_table_ids') final  List<String> mergedTableIds = const [], @JsonKey(name: 'version_num') this.versionNum = 1}): _occupiedSeats = occupiedSeats,_mergedTableIds = mergedTableIds,super._();
   factory _TableDto.fromJson(Map<String, dynamic> json) => _$TableDtoFromJson(json);
 
 @override final  String id;
@@ -512,6 +513,7 @@ class _TableDto implements TableDto {
   return EqualUnmodifiableListView(_mergedTableIds);
 }
 
+@override@JsonKey(name: 'version_num') final  int versionNum;
 
 /// Create a copy of TableDto
 /// with the given fields replaced by the non-null parameter values.
@@ -526,16 +528,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TableDto&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.capacity, capacity) || other.capacity == capacity)&&(identical(other.status, status) || other.status == status)&&(identical(other.activeOrderId, activeOrderId) || other.activeOrderId == activeOrderId)&&const DeepCollectionEquality().equals(other._occupiedSeats, _occupiedSeats)&&const DeepCollectionEquality().equals(other._mergedTableIds, _mergedTableIds));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TableDto&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.capacity, capacity) || other.capacity == capacity)&&(identical(other.status, status) || other.status == status)&&(identical(other.activeOrderId, activeOrderId) || other.activeOrderId == activeOrderId)&&const DeepCollectionEquality().equals(other._occupiedSeats, _occupiedSeats)&&const DeepCollectionEquality().equals(other._mergedTableIds, _mergedTableIds)&&(identical(other.versionNum, versionNum) || other.versionNum == versionNum));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,label,capacity,status,activeOrderId,const DeepCollectionEquality().hash(_occupiedSeats),const DeepCollectionEquality().hash(_mergedTableIds));
+int get hashCode => Object.hash(runtimeType,id,label,capacity,status,activeOrderId,const DeepCollectionEquality().hash(_occupiedSeats),const DeepCollectionEquality().hash(_mergedTableIds),versionNum);
 
 @override
 String toString() {
-  return 'TableDto(id: $id, label: $label, capacity: $capacity, status: $status, activeOrderId: $activeOrderId, occupiedSeats: $occupiedSeats, mergedTableIds: $mergedTableIds)';
+  return 'TableDto(id: $id, label: $label, capacity: $capacity, status: $status, activeOrderId: $activeOrderId, occupiedSeats: $occupiedSeats, mergedTableIds: $mergedTableIds, versionNum: $versionNum)';
 }
 
 
@@ -546,7 +548,7 @@ abstract mixin class _$TableDtoCopyWith<$Res> implements $TableDtoCopyWith<$Res>
   factory _$TableDtoCopyWith(_TableDto value, $Res Function(_TableDto) _then) = __$TableDtoCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String label, int capacity, String status,@JsonKey(name: 'active_order_id') String? activeOrderId,@JsonKey(name: 'occupied_seats') List<GuestSeatDto> occupiedSeats,@JsonKey(name: 'merged_table_ids') List<String> mergedTableIds
+ String id, String label, int capacity, String status,@JsonKey(name: 'active_order_id') String? activeOrderId,@JsonKey(name: 'occupied_seats') List<GuestSeatDto> occupiedSeats,@JsonKey(name: 'merged_table_ids') List<String> mergedTableIds,@JsonKey(name: 'version_num') int versionNum
 });
 
 
@@ -563,7 +565,7 @@ class __$TableDtoCopyWithImpl<$Res>
 
 /// Create a copy of TableDto
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? label = null,Object? capacity = null,Object? status = null,Object? activeOrderId = freezed,Object? occupiedSeats = null,Object? mergedTableIds = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? label = null,Object? capacity = null,Object? status = null,Object? activeOrderId = freezed,Object? occupiedSeats = null,Object? mergedTableIds = null,Object? versionNum = null,}) {
   return _then(_TableDto(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
@@ -572,7 +574,8 @@ as int,status: null == status ? _self.status : status // ignore: cast_nullable_t
 as String,activeOrderId: freezed == activeOrderId ? _self.activeOrderId : activeOrderId // ignore: cast_nullable_to_non_nullable
 as String?,occupiedSeats: null == occupiedSeats ? _self._occupiedSeats : occupiedSeats // ignore: cast_nullable_to_non_nullable
 as List<GuestSeatDto>,mergedTableIds: null == mergedTableIds ? _self._mergedTableIds : mergedTableIds // ignore: cast_nullable_to_non_nullable
-as List<String>,
+as List<String>,versionNum: null == versionNum ? _self.versionNum : versionNum // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 

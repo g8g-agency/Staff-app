@@ -83,6 +83,11 @@ class TableDetailScreen extends ConsumerWidget {
       case TableStatus.cleaning:
         statusColor = Colors.grey;
         break;
+      case TableStatus.unknown:
+      case TableStatus.projectionPending:
+      case TableStatus.recovering:
+        statusColor = Colors.grey;
+        break;
     }
 
     return Card(

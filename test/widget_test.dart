@@ -173,7 +173,7 @@ void main() {
       expect(domain.activeOrderId, dto.activeOrderId);
     });
 
-    test('should fallback to available status when string is unrecognized', () {
+    test('should fallback to unknown status when string is unrecognized', () {
       const dto = TableDto(
         id: '2',
         label: 'T2',
@@ -183,7 +183,7 @@ void main() {
 
       final domain = dto.toDomain();
 
-      expect(domain.status, TableStatus.available);
+      expect(domain.status, TableStatus.unknown);
     });
 
     test('should map domain entity back to DTO correctly', () {

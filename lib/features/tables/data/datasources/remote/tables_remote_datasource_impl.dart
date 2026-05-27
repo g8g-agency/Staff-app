@@ -16,7 +16,7 @@ class TablesRemoteDatasourceImpl implements TablesRemoteDatasource {
         .order('label', ascending: true);
 
     return (response as List)
-        .map((json) => TableDto.fromJson(json))
+        .map((json) => TableDto.fromMap(json))
         .toList();
   }
 
@@ -25,14 +25,13 @@ class TablesRemoteDatasourceImpl implements TablesRemoteDatasource {
     final response = await _client
         .from('tables')
         .update({
-          'status': status,
           'active_order_id': orderId,
         })
         .eq('id', id)
         .select()
         .single();
 
-    return TableDto.fromJson(response);
+    return TableDto.fromMap(response);
   }
 
   @override
@@ -41,7 +40,7 @@ class TablesRemoteDatasourceImpl implements TablesRemoteDatasource {
         .from('tables')
         .stream(primaryKey: ['id'])
         .order('label', ascending: true)
-        .map((event) => event.map((json) => TableDto.fromJson(json)).toList());
+        .map((event) => event.map((json) => TableDto.fromMap(json)).toList());
   }
 
   @override
@@ -50,7 +49,6 @@ class TablesRemoteDatasourceImpl implements TablesRemoteDatasource {
       await _client
           .from('tables')
           .update({
-            'status': 'occupied',
             'merged_table_ids': sourceTableIds,
           })
           .eq('id', targetTableId);
@@ -59,19 +57,12 @@ class TablesRemoteDatasourceImpl implements TablesRemoteDatasource {
         await _client
             .from('tables')
             .update({
-              'status': 'occupied',
               'active_order_id': null,
             })
             .eq('id', srcId);
       }
     } catch (_) {
-      // Fallback: If DB columns don't exist, update status only
-      try {
-        await _client
-            .from('tables')
-            .update({'status': 'occupied'})
-            .eq('id', targetTableId);
-      } catch (_) {}
+      // Fallback
     }
   }
 

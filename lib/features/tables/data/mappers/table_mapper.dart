@@ -10,7 +10,7 @@ extension TableDtoMapper on TableDto {
       capacity: capacity,
       status: TableStatus.values.firstWhere(
         (e) => e.name == status,
-        orElse: () => TableStatus.available,
+        orElse: () => TableStatus.unknown,
       ),
       activeOrderId: activeOrderId,
       occupiedSeats: occupiedSeats.map((s) => GuestSeat(
