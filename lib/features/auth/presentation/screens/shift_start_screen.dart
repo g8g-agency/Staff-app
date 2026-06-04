@@ -16,7 +16,6 @@ class ShiftStartScreen extends ConsumerStatefulWidget {
 }
 
 class _ShiftStartScreenState extends ConsumerState<ShiftStartScreen> {
-  StaffRole _selectedRole = StaffRole.waiter;
   String _selectedSection = 'Main Hall';
   
   final TextEditingController _balanceController = TextEditingController(text: '250.00');
@@ -157,7 +156,6 @@ class _ShiftStartScreenState extends ConsumerState<ShiftStartScreen> {
           ),
         ),
       ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05),
-      bottomNavigationBar: isDesktop ? null : _buildMobileNavBar(isDark),
     );
   }
 
@@ -188,48 +186,7 @@ class _ShiftStartScreenState extends ConsumerState<ShiftStartScreen> {
           ),
           const SizedBox(height: 24),
           
-          // Role Selection (Added to maintain functionality)
-          Text(
-            'OPERATIONAL ROLE',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1,
-              color: isDark ? Colors.white54 : const Color(0xFF64748B),
-            ),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<StaffRole>(
-            initialValue: _selectedRole,
-            dropdownColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
-            ),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8F9FA),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
-              ),
-            ),
-            items: StaffRole.values.map((role) {
-              return DropdownMenuItem(
-                value: role,
-                child: Text(role.name[0].toUpperCase() + role.name.substring(1)),
-              );
-            }).toList(),
-            onChanged: (val) {
-              if (val != null) setState(() => _selectedRole = val);
-            },
-          ),
-          const SizedBox(height: 24),
+
 
           // Zone Selection
           Text(
@@ -400,8 +357,23 @@ class _ShiftStartScreenState extends ConsumerState<ShiftStartScreen> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () async {
-                await ref.read(authNotifierProvider.notifier).startShift(_selectedRole, _selectedSection);
-                if (mounted) context.go('/tables');
+                final currentStaff = ref.read(authNotifierProvider).loggedInStaff;
+                if (currentStaff != null) {
+                  await ref.read(authNotifierProvider.notifier).startShift(currentStaff.role, _selectedSection);
+                  if (mounted) {
+                    final error = ref.read(authNotifierProvider).errorMessage;
+                    if (ref.read(authNotifierProvider).isShiftStarted) {
+                      context.go('/tables');
+                    } else if (error != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(error),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFE31E24),
@@ -644,69 +616,6 @@ class _ShiftStartScreenState extends ConsumerState<ShiftStartScreen> {
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildMobileNavBar(bool isDark) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, -4),
-          ),
-        ],
-        border: Border(
-          top: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: SafeArea(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(Icons.home_rounded, 'Home', true, isDark),
-            _buildNavItem(Icons.receipt_long_rounded, 'Orders', false, isDark),
-            _buildNavItem(Icons.restaurant_rounded, 'Tables', false, isDark),
-            _buildNavItem(Icons.person_rounded, 'Profile', false, isDark),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, bool isActive, bool isDark) {
-    const activeColor = Color(0xFFE31E24);
-    final activeBg = activeColor.withValues(alpha: 0.1);
-    final inactiveColor = isDark ? Colors.white54 : const Color(0xFF64748B);
-
-    return InkWell(
-      onTap: () {},
-      borderRadius: BorderRadius.circular(100),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? activeBg : Colors.transparent,
-          borderRadius: BorderRadius.circular(100),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: isActive ? activeColor : inactiveColor, size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
-                color: isActive ? activeColor : inactiveColor,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

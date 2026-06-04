@@ -13,6 +13,7 @@ class TablesRemoteDatasourceImpl implements TablesRemoteDatasource {
     final response = await _client
         .from('tables')
         .select()
+        .order('table_number', ascending: true)
         .order('label', ascending: true);
 
     return (response as List)
@@ -39,6 +40,7 @@ class TablesRemoteDatasourceImpl implements TablesRemoteDatasource {
     return _client
         .from('tables')
         .stream(primaryKey: ['id'])
+        .order('table_number', ascending: true)
         .order('label', ascending: true)
         .map((event) => event.map((json) => TableDto.fromMap(json)).toList());
   }

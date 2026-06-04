@@ -14,16 +14,16 @@ part 'auth_notifier.g.dart';
 class AuthNotifier extends _$AuthNotifier {
   @override
   AuthState build() {
-    _loadInitialData();
+    // Initial data is loaded by UI to show loading state
     return const AuthState();
   }
 
-  Future<void> _loadInitialData() async {
+  Future<void> loadInitialData() async {
     final repo = ref.read(authRepositoryProvider);
     _organizations = await repo.getOrganizations();
-    for (var org in _organizations) {
-      _branches[org.id] = await repo.getBranchesForOrganization(org.id);
-    }
+    print('Fetched organizations: ${_organizations.length}');
+    // Force a state update to trigger rebuilds for any watchers
+    state = state.copyWith();
   }
 
   List<Organization> get mockOrganizations => _organizations;
@@ -53,12 +53,17 @@ class AuthNotifier extends _$AuthNotifier {
     );
   }
 
-  Future<bool> loginWithPIN(String pin) async {
+  Future<bool> login(String employeeId, String pin) async {
     state = state.copyWith(errorMessage: null);
 
     // Check pin credentials against authoritative repository
     final repo = ref.read(authRepositoryProvider);
-    final staff = await repo.loginWithPIN(pin, branchId: state.selectedBranch?.id);
+    final staff = await repo.login(
+      employeeId,
+      pin, 
+      branchId: state.selectedBranch?.id,
+      orgId: state.selectedOrg?.id,
+    );
 
     if (staff != null) {
       state = state.copyWith(loggedInStaff: staff, isLocked: false);

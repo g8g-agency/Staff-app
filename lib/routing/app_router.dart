@@ -234,6 +234,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'dashboard',
             builder: (context, state) => const OperationalDashboardScreen(),
           ),
+          GoRoute(
+            path: '/profile',
+            name: 'profile',
+            builder: (context, state) => const RuntimeDiagnosticsScreen(),
+          ),
         ],
       ),
       GoRoute(
@@ -359,6 +364,8 @@ class NavigationShellLayout extends ConsumerWidget {
       selectedIndex = 1;
     } else if (location.startsWith('/dashboard')) {
       selectedIndex = 2;
+    } else if (location.startsWith('/profile') || location.startsWith('/diagnostics')) {
+      selectedIndex = 3;
     }
 
     RealtimeState mapState(RealtimeConnectionState s) {
@@ -408,65 +415,59 @@ class NavigationShellLayout extends ConsumerWidget {
             top: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
           ),
         ),
-        child: NavigationBarTheme(
-          data: NavigationBarThemeData(
-            backgroundColor: Colors.transparent,
-            indicatorColor: const Color(0xFFE31E24).withValues(alpha: 0.1),
-            labelTextStyle: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.selected)) {
-                return const TextStyle(color: Color(0xFFE31E24), fontWeight: FontWeight.bold, fontSize: 12);
-              }
-              return TextStyle(color: isDark ? Colors.white54 : const Color(0xFF64748B), fontWeight: FontWeight.w600, fontSize: 12);
-            }),
-            iconTheme: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.selected)) {
-                return const IconThemeData(color: Color(0xFFE31E24));
-              }
-              return IconThemeData(color: isDark ? Colors.white54 : const Color(0xFF64748B));
-            }),
-          ),
-          child: NavigationBar(
-            selectedIndex: selectedIndex,
-            elevation: 0,
-            destinations: [
-              // Floor Map with live waiter-call badge
-              NavigationDestination(
-                icon: activeCallCount > 0
-                    ? Badge(
-                        label: Text('$activeCallCount'),
-                        backgroundColor: AppColors.error,
-                        child: const Icon(Icons.table_restaurant_rounded),
-                      )
-                    : const Icon(Icons.table_restaurant_rounded),
-                selectedIcon: const Icon(Icons.table_restaurant_rounded),
-                label: 'Floor Map',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.receipt_long_rounded),
-                selectedIcon: Icon(Icons.receipt_long_rounded),
-                label: 'Active Orders',
-              ),
-
-              const NavigationDestination(
-                icon: Icon(Icons.dashboard_rounded),
-                selectedIcon: Icon(Icons.dashboard_rounded),
-                label: 'Dashboard',
-              ),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: SafeArea(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(context, Icons.table_restaurant_rounded, 'Tables', selectedIndex == 0, isDark, () => context.go('/tables'), badgeCount: activeCallCount),
+              _buildNavItem(context, Icons.receipt_long_rounded, 'Orders', selectedIndex == 1, isDark, () => context.go('/orders-feed')),
+              _buildNavItem(context, Icons.dashboard_rounded, 'Dashboard', selectedIndex == 2, isDark, () => context.go('/dashboard')),
+              _buildNavItem(context, Icons.person_rounded, 'Profile', selectedIndex == 3, isDark, () => context.go('/profile')),
             ],
-            onDestinationSelected: (index) {
-              switch (index) {
-                case 0:
-                  context.go('/tables');
-                  break;
-                case 1:
-                  context.go('/orders-feed');
-                  break;
-                case 2:
-                  context.go('/dashboard');
-                  break;
-              }
-            },
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(BuildContext context, IconData icon, String label, bool isActive, bool isDark, VoidCallback onTap, {int badgeCount = 0}) {
+    const activeColor = Color(0xFFE31E24);
+    final activeBg = activeColor.withValues(alpha: 0.1);
+    final inactiveColor = isDark ? Colors.white54 : const Color(0xFF64748B);
+
+    Widget iconWidget = Icon(icon, color: isActive ? activeColor : inactiveColor, size: 24);
+    if (badgeCount > 0) {
+      iconWidget = Badge(
+        label: Text('$badgeCount'),
+        backgroundColor: AppColors.error,
+        child: iconWidget,
+      );
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(100),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? activeBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            iconWidget,
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+                color: isActive ? activeColor : inactiveColor,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -671,7 +672,7 @@ class NavigationShellLayout extends ConsumerWidget {
                         color: AppColors.secondary,
                         onTap: () {
                           Navigator.pop(context);
-                          context.push('/profile');
+                          context.push('/diagnostics');
                         },
                       ),
                     ),

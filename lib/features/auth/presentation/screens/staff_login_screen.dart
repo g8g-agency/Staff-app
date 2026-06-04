@@ -1,11 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:dio/dio.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../state/auth_notifier.dart';
 import '../state/auth_state.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
+import '../../../../core/network/network_providers.dart';
 
 class StaffLoginScreen extends ConsumerStatefulWidget {
   const StaffLoginScreen({super.key});
@@ -15,26 +19,104 @@ class StaffLoginScreen extends ConsumerStatefulWidget {
 }
 
 class _StaffLoginScreenState extends ConsumerState<StaffLoginScreen> {
+  bool _isEnteringPin = false;
+  dynamic _matchedStaff;
+  bool _isLoading = false;
+  String? _localError;
+  
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  Future<List<dynamic>> _fetchStaff(String orgId, String branchId) async {
+    try {
+      final dio = ref.read(dioClientProvider);
+      final response = await dio.get(
+        '/api/v1/public/organizations/$orgId/branches/$branchId/staff',
+        options: Options(extra: {'skip_cache': true}),
+      );
+      if (response.data != null && response.data['data'] != null) {
+        return response.data['data'] as List<dynamic>;
+      }
+      return [];
+    } catch (e) {
+      throw Exception('Failed to fetch staff from API');
+    }
+  }
+
   final TextEditingController _pinController = TextEditingController();
   final FocusNode _pinFocus = FocusNode();
+  final TextEditingController _employeeIdController = TextEditingController();
+  final FocusNode _employeeIdFocus = FocusNode();
 
   @override
   void dispose() {
     _pinController.dispose();
     _pinFocus.dispose();
+    _employeeIdController.dispose();
+    _employeeIdFocus.dispose();
     super.dispose();
   }
 
   Future<void> _triggerLogin() async {
-    final pin = _pinController.text.trim();
-    if (pin.length != 4) return;
+    final employeeId = _employeeIdController.text.trim();
     
-    final success = await ref.read(authNotifierProvider.notifier).loginWithPIN(pin);
-    if (success && mounted) {
-      context.go('/shift-start');
-    } else if (mounted) {
-      _pinController.clear();
-      _pinFocus.requestFocus();
+    if (!_isEnteringPin) {
+      if (employeeId.isEmpty) {
+        _employeeIdFocus.requestFocus();
+        return;
+      }
+      setState(() {
+        _isLoading = true;
+        _localError = null;
+      });
+      try {
+        final authState = ref.read(authNotifierProvider);
+        final staffList = await _fetchStaff(authState.selectedOrg!.id, authState.selectedBranch!.id);
+        final staff = staffList.firstWhere(
+          (s) => s['employee_id'] == employeeId,
+          orElse: () => null,
+        );
+        if (staff != null) {
+          setState(() {
+            _isEnteringPin = true;
+            _matchedStaff = staff;
+            _isLoading = false;
+          });
+          Future.microtask(() => _pinFocus.requestFocus());
+        } else {
+          setState(() {
+            _isLoading = false;
+            _localError = 'Employee ID not found for this branch.';
+          });
+        }
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+          _localError = 'Failed to verify Employee ID. Please try again.';
+        });
+      }
+    } else {
+      final pin = _pinController.text.trim();
+      if (pin.length < 4) {
+        _pinFocus.requestFocus();
+        return;
+      }
+      setState(() {
+        _isLoading = true;
+        _localError = null;
+      });
+      final success = await ref.read(authNotifierProvider.notifier).login(employeeId, pin);
+      setState(() {
+        _isLoading = false;
+      });
+      if (success && mounted) {
+        context.go('/shift-start');
+      } else if (mounted) {
+        _pinController.clear();
+        _pinFocus.requestFocus();
+      }
     }
   }
 
@@ -176,7 +258,7 @@ class _StaffLoginScreenState extends ConsumerState<StaffLoginScreen> {
       child: Opacity(
         opacity: 0.1,
         child: Image.network(
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuA-bLjK6ykW7QmqK4EmDRtZ4i6wVdPBFjhn79QSaYXDE43Lt-Z3YQUjJ5ZeIzOtxVJlIO6gyo_2RasqwbMfEfAoUCjwVLRanEPl1hygqATwYnGQ8Xcvfbnt4M5Ryq8dS1640ASFelRgJjw01C4rrke-Q5nh8_rf8ZX5jwDLKHrr1i2ncj8-2-v74nUlppmmDw0Uq4QwwIOIABaitSKc1DFMmyCs2nzZM4KuzXr_Hc-8LYyDsRH78LfmGklwIVdVA0hauiP4pMRDzNwr',
+          'https://lh3.googleusercontent.com/aida-public/AB6AXu-bLjK6ykW7QmqK4EmDRtZ4i6wVdPBFjhn79QSaYXDE43Lt-Z3YQUjJ5ZeIzOtxVJlIO6gyo_2RasqwbMfEfAoUCjwVLRanEPl1hygqATwYnGQ8Xcvfbnt4M5Ryq8dS1640ASFelRgJjw01C4rrke-Q5nh8_rf8ZX5jwDLKHrr1i2ncj8-2-v74nUlppmmDw0Uq4QwwIOIABaitSKc1DFMmyCs2nzZM4KuzXr_Hc-8LYyDsRH78LfmGklwIVdVA0hauiP4pMRDzNwr',
           fit: BoxFit.cover,
         ),
       ),
@@ -185,6 +267,8 @@ class _StaffLoginScreenState extends ConsumerState<StaffLoginScreen> {
 
   Widget _buildRightSection(bool isDark, AuthState authState) {
     final theme = Theme.of(context);
+    final displayedError = _localError ?? authState.errorMessage;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 48.0),
       child: Column(
@@ -232,54 +316,139 @@ class _StaffLoginScreenState extends ConsumerState<StaffLoginScreen> {
           ),
           const SizedBox(height: 48),
 
-          // Form
-          Text(
-            'Secure PIN',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
+          // Form Wizard - Step 1: Employee ID
+          if (!_isEnteringPin) ...[
+            Text(
+              'Employee ID',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _pinController,
-            focusNode: _pinFocus,
-            keyboardType: TextInputType.number,
-            obscureText: true,
-            maxLength: 4,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
-            ),
-            decoration: InputDecoration(
-              counterText: '',
-              hintText: '••••',
-              hintStyle: GoogleFonts.plusJakartaSans(
+            const SizedBox(height: 8),
+            TextField(
+              controller: _employeeIdController,
+              focusNode: _employeeIdFocus,
+              keyboardType: TextInputType.text,
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
-                color: isDark ? Colors.white54 : const Color(0xFF94A3B8),
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
               ),
-              prefixIcon: Icon(Icons.lock_rounded, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
-              filled: true,
-              fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8F9FA),
-              contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+              decoration: InputDecoration(
+                hintText: 'Enter Employee ID',
+                hintStyle: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  color: isDark ? Colors.white54 : const Color(0xFF94A3B8),
+                ),
+                prefixIcon: Icon(Icons.person_rounded, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
+                filled: true,
+                fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8F9FA),
+                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: Color(0xFFE31E24)),
+                ),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+              onSubmitted: (_) => _triggerLogin(),
+            ),
+          ],
+
+          // Form Wizard - Step 2: PIN
+          if (_isEnteringPin) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE31E24).withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE31E24).withValues(alpha: 0.2)),
               ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: Color(0xFFE31E24)),
+              child: Row(
+                children: [
+                  const Icon(Icons.account_circle, color: Color(0xFFE31E24)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _matchedStaff?['name'] ?? 'Staff Member',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                        Text(
+                          'Role: ${(_matchedStaff?['role'] as String? ?? 'waiter').toUpperCase()}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            onSubmitted: (_) => _triggerLogin(),
-          ),
+            const SizedBox(height: 24),
+            Text(
+              'Secure PIN',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _pinController,
+              focusNode: _pinFocus,
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              maxLength: 4,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+              decoration: InputDecoration(
+                counterText: '',
+                hintText: '••••',
+                hintStyle: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  color: isDark ? Colors.white54 : const Color(0xFF94A3B8),
+                ),
+                prefixIcon: Icon(Icons.lock_rounded, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
+                filled: true,
+                fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8F9FA),
+                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: Color(0xFFE31E24)),
+                ),
+              ),
+              onSubmitted: (_) => _triggerLogin(),
+            ),
+          ],
 
-          if (authState.errorMessage != null) ...[
+          if (displayedError != null) ...[
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -288,7 +457,7 @@ class _StaffLoginScreenState extends ConsumerState<StaffLoginScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
-                authState.errorMessage!,
+                displayedError,
                 style: const TextStyle(
                   color: AppColors.error,
                   fontWeight: FontWeight.bold,
@@ -300,7 +469,7 @@ class _StaffLoginScreenState extends ConsumerState<StaffLoginScreen> {
 
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: _triggerLogin,
+            onPressed: _isLoading ? null : _triggerLogin,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE31E24),
               foregroundColor: Colors.white,
@@ -313,18 +482,50 @@ class _StaffLoginScreenState extends ConsumerState<StaffLoginScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  'Access Terminal',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                if (_isLoading)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                  )
+                else ...[
+                  Text(
+                    _isEnteringPin ? 'Access Terminal' : 'Continue',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(Icons.arrow_forward_rounded, size: 20),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward_rounded, size: 20),
+                ]
               ],
             ),
           ),
+
+          if (_isEnteringPin) ...[
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton(
+                onPressed: () {
+                  setState(() {
+                    _isEnteringPin = false;
+                    _pinController.clear();
+                    _localError = null;
+                  });
+                  Future.microtask(() => _employeeIdFocus.requestFocus());
+                },
+                child: Text(
+                  'Change Employee ID',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ),
+          ],
 
           const SizedBox(height: 32),
           // Links
@@ -342,32 +543,6 @@ class _StaffLoginScreenState extends ConsumerState<StaffLoginScreen> {
             ),
           ),
           
-          const SizedBox(height: 32),
-          // Logs Box
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0F172A) : Colors.grey[200],
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '💡 Staff Simulator Logs:',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w700, 
-                    fontSize: 12,
-                    color: isDark ? Colors.white70 : const Color(0xFF475569),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text('• John Doe (Waiter) — PIN: 1234', style: theme.textTheme.bodySmall),
-                Text('• Sarah Jenkins (KDS) — PIN: 5678', style: theme.textTheme.bodySmall),
-                Text('• Bob Smith (Manager) — PIN: 0000', style: theme.textTheme.bodySmall),
-              ],
-            ),
-          ),
           const SizedBox(height: 16),
           Center(
             child: Text(

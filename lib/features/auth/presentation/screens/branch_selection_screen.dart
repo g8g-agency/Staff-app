@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/branch.dart';
 import '../state/auth_notifier.dart';
+import '../../providers/auth_repository_provider.dart';
 
 class BranchSelectionScreen extends ConsumerStatefulWidget {
   const BranchSelectionScreen({super.key});
@@ -17,6 +18,33 @@ class BranchSelectionScreen extends ConsumerStatefulWidget {
 class _BranchSelectionScreenState extends ConsumerState<BranchSelectionScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  List<Branch> _branches = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBranches();
+  }
+
+  Future<void> _loadBranches() async {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final authState = ref.read(authNotifierProvider);
+      final orgId = authState.selectedOrg?.id;
+      print('[BranchSelection] Selected Org ID: $orgId');
+      if (orgId == null) return;
+
+      final repo = ref.read(authRepositoryProvider);
+      final branches = await repo.getBranchesForOrganization(orgId);
+      print('[BranchSelection] Fetched ${branches.length} branches from repo');
+      if (mounted) {
+        setState(() {
+          _branches = branches;
+          _isLoading = false;
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -39,8 +67,14 @@ class _BranchSelectionScreenState extends ConsumerState<BranchSelectionScreen> {
       return const SizedBox.shrink();
     }
 
-    final branches = notifier.mockBranches[selectedOrg.id] ?? [];
-    final filteredBranches = branches
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: isDark ? AppColors.darkBackground : const Color(0xFFF8F9FA),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final filteredBranches = _branches
         .where((b) => b.name.toLowerCase().contains(_searchQuery.toLowerCase()))
         .toList();
 
@@ -335,16 +369,24 @@ class _BranchSelectionScreenState extends ConsumerState<BranchSelectionScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        branch.name,
+                        'Branch: ${branch.name}',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 20,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           color: isDark ? Colors.white : const Color(0xFF0F172A),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
+                      Text(
+                        'Tap to login to this branch',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       Row(
                         children: [
                           Icon(Icons.location_on_rounded, size: 16, color: isDark ? Colors.white54 : const Color(0xFF64748B)),

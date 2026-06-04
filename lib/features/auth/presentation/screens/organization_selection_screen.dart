@@ -17,6 +17,26 @@ class OrganizationSelectionScreen extends ConsumerStatefulWidget {
 class _OrganizationSelectionScreenState extends ConsumerState<OrganizationSelectionScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrgs();
+  }
+
+  Future<void> _loadOrgs() async {
+    // Wait for the next microtask to ensure provider is ready
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final notifier = ref.read(authNotifierProvider.notifier);
+      await notifier.loadInitialData();
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -42,6 +62,15 @@ class _OrganizationSelectionScreenState extends ConsumerState<OrganizationSelect
       crossAxisCount = 3;
     } else if (screenWidth >= 768) {
       crossAxisCount = 2;
+    }
+
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: isDark ? AppColors.darkBackground : const Color(0xFFF8F9FA),
+        body: Center(
+          child: CircularProgressIndicator(color: brandRed),
+        ),
+      );
     }
 
     return Scaffold(
@@ -272,8 +301,6 @@ class _OrganizationSelectionScreenState extends ConsumerState<OrganizationSelect
   }
 
   Widget _buildOrgCard(Organization org, bool isDark, AuthNotifier notifier, int index) {
-    final isSuspended = index % 3 == 2; // Mock suspended state for some cards
-    
     // Some mock images from the design
     final images = [
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAXx7y0Uub55mG6DlgbJwbtipI5d6NCWIDnVVbSNAMZ-5kE5iWLnR_FEgLhWhfsHmvX9qxBP9wP56vE6rmWTlvG2TodcMkBQCz0yHCEBcTTuxCZZjlFuX20yOZdZS9wRdo-Sh-lwmNFW4Eu9wW5GOYtw4DxKR_VnE8rujwQu50j6RWJGElkV5cA5KaUKP_ddvenq5CpgelIsSqIWfdmPydKOvFcBU1ngx1q3Q6jrwMAVxmwX4oJ-OPRotK25ofUaLLnFWqhdvBBxg26',
@@ -292,116 +319,110 @@ class _OrganizationSelectionScreenState extends ConsumerState<OrganizationSelect
       ),
       color: isDark ? const Color(0xFF1E293B) : Colors.white,
       child: InkWell(
-        onTap: isSuspended ? null : () {
+        onTap: () {
           notifier.selectOrganization(org);
           context.go('/branch-select');
         },
-        child: Opacity(
-          opacity: isSuspended ? 0.75 : 1.0,
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: isDark ? Colors.white10 : const Color(0xFFF1F5F9)),
-                        image: isSuspended ? null : DecorationImage(
-                          image: NetworkImage(imageUrl),
-                          fit: BoxFit.cover,
-                        ),
-                        color: isSuspended ? (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)) : null,
-                      ),
-                      child: isSuspended ? Icon(Icons.store_rounded, size: 32, color: isDark ? Colors.white54 : const Color(0xFF94A3B8)) : null,
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isSuspended 
-                            ? (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEE2E2)) 
-                            : (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
-                        borderRadius: BorderRadius.circular(100),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isSuspended ? Icons.block_rounded : Icons.check_circle_rounded,
-                            size: 14,
-                            color: isSuspended ? (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C)) : (isDark ? Colors.white : const Color(0xFF0F172A)),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            isSuspended ? 'Suspended' : 'Active',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isSuspended ? (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C)) : (isDark ? Colors.white : const Color(0xFF0F172A)),
-                            ),
-                          ),
-                        ],
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isDark ? Colors.white10 : const Color(0xFFF1F5F9)),
+                      image: DecorationImage(
+                        image: NetworkImage(imageUrl),
+                        fit: BoxFit.cover,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  org.name,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.location_on_rounded, size: 16, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${(index * 3) + 4} Locations • Regional',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        color: isDark ? Colors.white54 : const Color(0xFF64748B),
-                      ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(100),
                     ),
-                  ],
-                ),
-                const Spacer(),
-                const Divider(height: 1),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      isSuspended ? 'Contact Support' : 'Enter Dashboard',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white70 : const Color(0xFF475569),
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: 14,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Active',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
                     ),
-                    Icon(
-                      isSuspended ? Icons.help_outline_rounded : Icons.arrow_forward_rounded,
-                      size: 20,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Text(
+                org.name,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.storefront_rounded, size: 16, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Restaurant',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              const Divider(height: 1),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Enter Dashboard',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                       color: isDark ? Colors.white70 : const Color(0xFF475569),
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 20,
+                    color: isDark ? Colors.white70 : const Color(0xFF475569),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
     ).animate().fadeIn(delay: (index * 50).ms, duration: 400.ms).slideY(begin: 0.1);
   }
 }
+
