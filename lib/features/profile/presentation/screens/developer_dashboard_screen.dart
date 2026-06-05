@@ -16,19 +16,20 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/runtime/diagnostics/runtime_diagnostics_snapshot.dart';
 import '../../../../core/runtime/diagnostics/operational_health_publisher.dart';
 import '../../../kitchen/domain/kitchen_runtime_coordinator.dart';
+import '../../../orders/presentation/state/order_alert_notifier.dart';
 
 // ━━━━━━━━━━━━━━━━━━━━━━ SCREEN ━━━━━━━━━━━━━━━━━━━━━━
 
-class RuntimeDiagnosticsScreen extends ConsumerStatefulWidget {
-  const RuntimeDiagnosticsScreen({super.key});
+class DeveloperDashboardScreen extends ConsumerStatefulWidget {
+  const DeveloperDashboardScreen({super.key});
 
   @override
-  ConsumerState<RuntimeDiagnosticsScreen> createState() =>
-      _RuntimeDiagnosticsScreenState();
+  ConsumerState<DeveloperDashboardScreen> createState() =>
+      _DeveloperDashboardScreenState();
 }
 
-class _RuntimeDiagnosticsScreenState
-    extends ConsumerState<RuntimeDiagnosticsScreen> {
+class _DeveloperDashboardScreenState
+    extends ConsumerState<DeveloperDashboardScreen> {
   final List<double> _sparkline = List.generate(10, (_) => 20.0);
   final _random = math.Random();
 
@@ -66,7 +67,7 @@ class _RuntimeDiagnosticsScreenState
       backgroundColor: bgColor,
       appBar: AppBar(
         title: Text(
-          'Runtime Diagnostics',
+          'Developer Dashboard',
           style: AppTextStyles.h3.copyWith(
             color: textPrimary,
             fontWeight: FontWeight.bold,
@@ -196,13 +197,19 @@ class _RuntimeDiagnosticsScreenState
           ],
         ),
         const SizedBox(height: 20),
-
         // ── API LATENCY ──────────────────────────────────────────────────────
         _sectionHeader('API LATENCY', textSecondary),
         _DiagnosticsCard(
           surfaceColor: surfaceColor,
           borderColor: borderColor,
           children: [
+            _row(
+              'Realtime Latency',
+              textPrimary,
+              value: '${s.transport.lastPingMs} ms',
+              valueColor: _pingColor(s.transport.lastPingMs),
+            ),
+            _divider(borderColor),
             _row(
               'P50 Latency',
               textPrimary,
@@ -495,6 +502,79 @@ class _RuntimeDiagnosticsScreenState
               valueColor: s.mutations.failedMutations > 0
                   ? AppColors.error
                   : AppColors.success,
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // ── SIMULATION ACTIONS ────────────────────────────────────────────────
+        _sectionHeader('SIMULATION ACTIONS', textSecondary),
+        _DiagnosticsCard(
+          surfaceColor: surfaceColor,
+          borderColor: borderColor,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.add_shopping_cart_rounded, color: AppColors.primary),
+              title: Text(
+                'Simulate Incoming Order Alert',
+                style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(
+                'Triggers the fullscreen new order popup overlay',
+                style: TextStyle(color: textSecondary, fontSize: 12),
+              ),
+              onTap: () {
+                HapticFeedback.heavyImpact();
+                ref.read(orderAlertNotifierProvider.notifier).enqueueAlert({
+                  'orderId': 'mock-order-${DateTime.now().millisecondsSinceEpoch}',
+                  'orderNumber': 'ORD-${1000 + DateTime.now().millisecond}',
+                  'tableNumber': '12',
+                  'totalAmountMinor': 145000, // ₹1450
+                  'itemCount': 3,
+                  'orderTime': DateTime.now().toIso8601String(),
+                  'versionNum': 1,
+                  'items': [
+                    {'name': 'Paneer Tikka Masala', 'quantity': 2},
+                    {'name': 'Butter Naan', 'quantity': 4},
+                    {'name': 'Mango Lassi', 'quantity': 2},
+                  ],
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Simulated Incoming Order Alert'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+            _divider(borderColor),
+            ListTile(
+              leading: const Icon(Icons.restaurant_menu_rounded, color: AppColors.success),
+              title: Text(
+                'Simulate Order Ready Alert',
+                style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(
+                'Triggers the order ready for pickup popup overlay',
+                style: TextStyle(color: textSecondary, fontSize: 12),
+              ),
+              onTap: () {
+                HapticFeedback.heavyImpact();
+                ref.read(orderAlertNotifierProvider.notifier).enqueueReadyAlert({
+                  'orderId': 'mock-ready-${DateTime.now().millisecondsSinceEpoch}',
+                  'orderNumber': 'ORD-${2000 + DateTime.now().millisecond}',
+                  'tableNumber': '8',
+                  'assignedStaffId': 'staff_001',
+                  'assignedStaffName': 'John Doe',
+                  'readyAt': DateTime.now().toIso8601String(),
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Simulated Order Ready Alert'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
             ),
           ],
         ),

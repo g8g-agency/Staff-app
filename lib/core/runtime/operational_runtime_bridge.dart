@@ -39,6 +39,8 @@ import '../../features/waiter_calls/presentation/state/waiter_calls_providers.da
 import '../../features/kitchen/presentation/state/kitchen_runtime_providers.dart';
 // Presence governance
 import '../../features/staff/presentation/state/staff_presence_governance_providers.dart';
+// Order alerts
+import '../../features/orders/presentation/state/order_alert_notifier.dart';
 
 // ━━━━━━━━━━━━━━━━━━━━━━ BRIDGE ━━━━━━━━━━━━━━━━━━━━━━
 
@@ -222,12 +224,45 @@ class OperationalRuntimeBridge {
         await _store.applyValidatedEvent(event);
         break;
 
+      // ── Order Alert Domain ────────────────────────────────────────────────
+      case RuntimeEventType.orderAssigned:
+      case RuntimeEventType.orderReassigned:
+      case RuntimeEventType.orderReadyForPickup:
+        await _handleOrderAlertEvent(event);
+        break;
+
       case RuntimeEventType.unknown:
       default:
         debugPrint(
           '[OperationalRuntimeBridge] WARNING: Unknown event type ${event.type}',
         );
         break;
+    }
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━ ORDER ALERT DISPATCH ━━━━━━━━━━━━━━━━━━━━━━
+
+  Future<void> _handleOrderAlertEvent(RuntimeEvent event) async {
+    final payload = event.payload;
+    final assignedStaffId = payload['assignedStaffId'] as String?;
+    final currentStaffId = _ref.read(authNotifierProvider).loggedInStaff?.id;
+
+    // Only show alert if this event targets ME, or has no target (broadcast)
+    if (assignedStaffId != null && assignedStaffId != currentStaffId) {
+      debugPrint(
+        '[OperationalRuntimeBridge] ${event.type.name} for different staff ($assignedStaffId). Ignoring.',
+      );
+      return;
+    }
+
+    debugPrint(
+      '[OperationalRuntimeBridge] ${event.type.name} for current staff. Queuing alert.',
+    );
+
+    if (event.type == RuntimeEventType.orderReadyForPickup) {
+      _ref.read(orderAlertNotifierProvider.notifier).enqueueReadyAlert(payload);
+    } else {
+      _ref.read(orderAlertNotifierProvider.notifier).enqueueAlert(payload);
     }
   }
 
@@ -272,6 +307,12 @@ class OperationalRuntimeBridge {
         return RuntimeEventType.operationalAlertDismissed;
       case 'floor_analytics_delta':
         return RuntimeEventType.floorAnalyticsDelta;
+      case 'order_assigned':
+        return RuntimeEventType.orderAssigned;
+      case 'order_reassigned':
+        return RuntimeEventType.orderReassigned;
+      case 'ORDER_READY_FOR_PICKUP':
+        return RuntimeEventType.orderReadyForPickup;
       default:
         return RuntimeEventType.unknown;
     }

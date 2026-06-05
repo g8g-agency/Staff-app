@@ -40,7 +40,10 @@ import '../features/staff/presentation/screens/staff_presence_screen.dart';
 import '../features/realtime/presentation/screens/realtime_status_screen.dart';
 import '../features/realtime/presentation/screens/pending_sync_screen.dart';
 import '../features/realtime/presentation/screens/operational_recovery_screen.dart';
-import '../features/profile/presentation/screens/runtime_diagnostics_screen.dart';
+import '../features/profile/presentation/screens/developer_dashboard_screen.dart';
+import '../features/profile/presentation/screens/staff_profile_screen.dart';
+import '../features/profile/presentation/screens/profile_setup_screen.dart';
+import '../features/profile/presentation/screens/developer_settings_screen.dart';
 import '../features/manager/presentation/screens/floor_analytics_screen.dart';
 import '../features/manager/presentation/screens/staff_performance_screen.dart';
 import '../features/manager/presentation/screens/operational_alerts_screen.dart';
@@ -48,6 +51,7 @@ import '../features/realtime/presentation/state/realtime_providers.dart';
 import '../features/realtime/domain/entities/realtime_state_model.dart';
 import '../core/widgets/realtime_banner.dart';
 import '../core/network/realtime_sync_manager.dart';
+import '../features/orders/presentation/widgets/incoming_order_alert_overlay.dart';
 
 // Derived provider: count of active (unresolved) waiter calls for badge display
 final activeWaiterCallsCountProvider = Provider<int>((ref) {
@@ -155,7 +159,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      // If logged in, shift started, operational, and not locked, block access to auth configuration screens
+      // If logged in, shift started, operational, and not locked...
+
+      // Enforce profile completion
+      final staff = authState.loggedInStaff;
+      if (staff != null && !staff.profileCompleted) {
+        if (loc != '/profile-setup') {
+          return '/profile-setup';
+        }
+        return null;
+      }
+
+      // If profile is completed, ensure they can't access profile-setup manually
+      if (loc == '/profile-setup' && staff != null && staff.profileCompleted) {
+        return '/tables';
+      }
+
+      // Block access to auth configuration screens
       final isAuthScreen =
           loc == '/device-registration' ||
           loc == '/login' ||
@@ -199,6 +219,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'lock',
         builder: (context, state) => const SessionLockScreen(),
       ),
+      GoRoute(
+        path: '/profile-setup',
+        name: 'profile-setup',
+        builder: (context, state) => const ProfileSetupScreen(),
+      ),
       ShellRoute(
         builder: (context, state, child) {
           return NavigationShellLayout(child: child);
@@ -227,7 +252,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/profile',
             name: 'profile',
-            builder: (context, state) => const RuntimeDiagnosticsScreen(),
+            builder: (context, state) => const StaffProfileScreen(),
+          ),
+          GoRoute(
+            path: '/developer',
+            name: 'developer',
+            builder: (context, state) => const DeveloperDashboardScreen(),
+          ),
+          GoRoute(
+            path: '/settings/developer',
+            name: 'settings-developer',
+            builder: (context, state) => const DeveloperSettingsScreen(),
           ),
         ],
       ),
@@ -351,7 +386,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/diagnostics',
         name: 'runtime-diagnostics',
-        builder: (context, state) => const RuntimeDiagnosticsScreen(),
+        builder: (context, state) => const DeveloperDashboardScreen(),
       ),
       GoRoute(
         path: '/manager/analytics',
@@ -395,6 +430,8 @@ class NavigationShellLayout extends ConsumerWidget {
     } else if (location.startsWith('/dashboard')) {
       selectedIndex = 2;
     } else if (location.startsWith('/profile') ||
+        location.startsWith('/developer') ||
+        location.startsWith('/settings/developer') ||
         location.startsWith('/diagnostics')) {
       selectedIndex = 3;
     }
@@ -414,86 +451,185 @@ class NavigationShellLayout extends ConsumerWidget {
       }
     }
 
-    return Scaffold(
-      // Persistent top-bar with live notification bell
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(60),
-        child: _buildTopActionBar(
-          context,
-          unreadNotifCount,
-          activeCallCount,
-          authState.selectedBranch?.name ?? 'Main Kitchen',
-          isDark,
-        ),
-      ),
-      body: Stack(
-        children: [
-          child,
-          RealtimeBanner(
-            state: mapState(realtimeState.connectionState),
-            reconnectAttempt: realtimeState.reconnectAttempts,
-            onRetry: () {
-              ref.read(realtimeSyncManagerProvider).connectLocal();
-            },
-          ),
-        ],
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 12,
-              offset: const Offset(0, -4),
-            ),
-          ],
-          border: Border(
-            top: BorderSide(
-              color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
-            ),
-          ),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: SafeArea(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+    final isDevRoute =
+        location.startsWith('/developer') ||
+        location.startsWith('/settings/developer');
+    final isProfileRoute = location.startsWith('/profile');
+    final isDev = authState.loggedInStaff?.developerModeEnabled ?? false;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 800;
+
+        final bodyContent = OrderAlertListener(
+          child: Stack(
             children: [
-              _buildNavItem(
-                context,
-                Icons.table_restaurant_rounded,
-                'Tables',
-                selectedIndex == 0,
-                isDark,
-                () => context.go('/tables'),
-                badgeCount: activeCallCount,
-              ),
-              _buildNavItem(
-                context,
-                Icons.receipt_long_rounded,
-                'Orders',
-                selectedIndex == 1,
-                isDark,
-                () => context.go('/orders-feed'),
-              ),
-              _buildNavItem(
-                context,
-                Icons.dashboard_rounded,
-                'Dashboard',
-                selectedIndex == 2,
-                isDark,
-                () => context.go('/dashboard'),
-              ),
-              _buildNavItem(
-                context,
-                Icons.person_rounded,
-                'Profile',
-                selectedIndex == 3,
-                isDark,
-                () => context.go('/profile'),
+              child,
+              RealtimeBanner(
+                state: mapState(realtimeState.connectionState),
+                reconnectAttempt: realtimeState.reconnectAttempts,
+                onRetry: () {
+                  ref.read(realtimeSyncManagerProvider).connectLocal();
+                },
               ),
             ],
           ),
+        );
+
+        final scaffold = Scaffold(
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(60),
+            child: _buildTopActionBar(
+              context,
+              unreadNotifCount,
+              activeCallCount,
+              authState.selectedBranch?.name ?? 'Main Kitchen',
+              isDark,
+              isDesktop,
+            ),
+          ),
+          body: isDesktop
+              ? Row(
+                  children: [
+                    _buildNavigationRail(
+                      context,
+                      selectedIndex,
+                      isDevRoute,
+                      isProfileRoute,
+                      isDev,
+                      activeCallCount,
+                      isDark,
+                    ),
+                    VerticalDivider(
+                      thickness: 1,
+                      width: 1,
+                      color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+                    ),
+                    Expanded(child: bodyContent),
+                  ],
+                )
+              : bodyContent,
+          bottomNavigationBar: isDesktop
+              ? null
+              : _buildBottomNavigationBar(
+                  context,
+                  selectedIndex,
+                  isDevRoute,
+                  isProfileRoute,
+                  isDev,
+                  activeCallCount,
+                  isDark,
+                ),
+        );
+
+        return scaffold;
+      },
+    );
+  }
+
+  Widget _buildNavigationRail(
+    BuildContext context,
+    int selectedIndex,
+    bool isDevRoute,
+    bool isProfileRoute,
+    bool isDev,
+    int activeCallCount,
+    bool isDark,
+  ) {
+    return Container(
+      width: 80,
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      child: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+            _buildNavItem(context, Icons.table_restaurant_rounded, 'Tables', selectedIndex == 0, isDark, () => context.go('/tables'), badgeCount: activeCallCount, isRail: true),
+            _buildNavItem(context, Icons.receipt_long_rounded, 'Orders', selectedIndex == 1, isDark, () => context.go('/orders-feed'), isRail: true),
+            _buildNavItem(context, Icons.dashboard_rounded, 'Dashboard', selectedIndex == 2, isDark, () => context.go('/dashboard'), isRail: true),
+            if (isDev)
+              _buildNavItem(context, Icons.terminal_rounded, 'Developer', isDevRoute, isDark, () => context.go('/developer'), isRail: true),
+            const Spacer(),
+            _buildNavItem(context, Icons.person_rounded, 'Profile', isProfileRoute, isDark, () => context.go('/profile'), isRail: true),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavigationBar(
+    BuildContext context,
+    int selectedIndex,
+    bool isDevRoute,
+    bool isProfileRoute,
+    bool isDev,
+    int activeCallCount,
+    bool isDark,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
+          ),
+        ],
+        border: Border(
+          top: BorderSide(
+            color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+          ),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: SafeArea(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildNavItem(
+              context,
+              Icons.table_restaurant_rounded,
+              'Tables',
+              selectedIndex == 0,
+              isDark,
+              () => context.go('/tables'),
+              badgeCount: activeCallCount,
+            ),
+            _buildNavItem(
+              context,
+              Icons.receipt_long_rounded,
+              'Orders',
+              selectedIndex == 1,
+              isDark,
+              () => context.go('/orders-feed'),
+            ),
+            _buildNavItem(
+              context,
+              Icons.dashboard_rounded,
+              'Dashboard',
+              selectedIndex == 2,
+              isDark,
+              () => context.go('/dashboard'),
+            ),
+            if (isDev)
+              _buildNavItem(
+                context,
+                Icons.terminal_rounded,
+                'Developer',
+                isDevRoute,
+                isDark,
+                () => context.go('/developer'),
+              ),
+            _buildNavItem(
+              context,
+              Icons.person_rounded,
+              'Profile',
+              isProfileRoute,
+              isDark,
+              () => context.go('/profile'),
+            ),
+          ],
         ),
       ),
     );
@@ -507,6 +643,7 @@ class NavigationShellLayout extends ConsumerWidget {
     bool isDark,
     VoidCallback onTap, {
     int badgeCount = 0,
+    bool isRail = false,
   }) {
     const activeColor = Color(0xFFE31E24);
     final activeBg = activeColor.withValues(alpha: 0.1);
@@ -525,32 +662,51 @@ class NavigationShellLayout extends ConsumerWidget {
       );
     }
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(100),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? activeBg : Colors.transparent,
-          borderRadius: BorderRadius.circular(100),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            iconWidget,
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
-                color: isActive ? activeColor : inactiveColor,
+    final item = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: isActive ? activeBg : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: iconWidget,
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+                  color: isActive ? activeColor : inactiveColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );
+
+    return isRail
+        ? Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: item,
+          )
+        : Expanded(child: item);
   }
 
   Widget _buildTopActionBar(
@@ -559,6 +715,7 @@ class NavigationShellLayout extends ConsumerWidget {
     int activeCallCount,
     String branchName,
     bool isDark,
+    bool isDesktop,
   ) {
     return Container(
       decoration: BoxDecoration(
@@ -605,11 +762,32 @@ class NavigationShellLayout extends ConsumerWidget {
               Row(
                 children: [
                   // More operational shortcuts via bottom sheet
-                  IconButton(
-                    icon: const Icon(Icons.grid_view_rounded),
-                    tooltip: 'Quick Access',
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.grid_view_rounded, size: 20),
+                    label: Text(
+                      'Quick Access',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFF1F5F9),
+                      foregroundColor: isDark ? Colors.white : Colors.black,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                     onPressed: () => _showQuickAccessSheet(context),
                   ),
+                  const SizedBox(width: 12),
                   // Notification center with unread badge
                   IconButton(
                     icon: unreadNotifCount > 0
@@ -634,139 +812,169 @@ class NavigationShellLayout extends ConsumerWidget {
   void _showQuickAccessSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 16),
-                  child: Text(
-                    'Quick Access',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 16),
+                    child: Text(
+                      'Quick Access',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _QuickAccessTile(
-                        icon: Icons.support_agent_rounded,
-                        label: 'Waiter Calls',
-                        color: AppColors.primary,
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/waiter-calls');
-                        },
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickAccessTile(
+                          icon: Icons.support_agent_rounded,
+                          label: 'Waiter Calls',
+                          color: AppColors.primary,
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/waiter-calls');
+                          },
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _QuickAccessTile(
-                        icon: Icons.delivery_dining_rounded,
-                        label: 'Kitchen Ready',
-                        color: AppColors.success,
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/kitchen/ready');
-                        },
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _QuickAccessTile(
+                          icon: Icons.delivery_dining_rounded,
+                          label: 'Kitchen Ready',
+                          color: AppColors.success,
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/kitchen/ready');
+                          },
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _QuickAccessTile(
-                        icon: Icons.timer_off_rounded,
-                        label: 'Delayed Tickets',
-                        color: AppColors.error,
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/kitchen/delayed');
-                        },
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickAccessTile(
+                          icon: Icons.timer_off_rounded,
+                          label: 'Delayed Tickets',
+                          color: AppColors.error,
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/kitchen/delayed');
+                          },
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _QuickAccessTile(
-                        icon: Icons.account_balance_wallet_rounded,
-                        label: 'Pending Bills',
-                        color: AppColors.secondary,
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/billing/pending');
-                        },
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _QuickAccessTile(
+                          icon: Icons.account_balance_wallet_rounded,
+                          label: 'Pending Bills',
+                          color: AppColors.warning,
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/billing/pending');
+                          },
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _QuickAccessTile(
-                        icon: Icons.schedule_rounded,
-                        label: 'My Shift',
-                        color: AppColors.primary,
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/shift/dashboard');
-                        },
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickAccessTile(
+                          icon: Icons.history_rounded,
+                          label: 'Order History',
+                          color: Colors.deepPurpleAccent,
+                          onTap: () {
+                            context.pop();
+                          },
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _QuickAccessTile(
-                        icon: Icons.groups_rounded,
-                        label: 'Staff Presence',
-                        color: AppColors.success,
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/staff/presence');
-                        },
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _QuickAccessTile(
+                          icon: Icons.developer_mode_rounded,
+                          label: 'Developer Options',
+                          color: Colors.cyan,
+                          onTap: () {
+                            context.pop();
+                            context.push('/settings/developer');
+                          },
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _QuickAccessTile(
-                        icon: Icons.crisis_alert_rounded,
-                        label: 'Alerts',
-                        color: AppColors.error,
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/manager/alerts');
-                        },
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickAccessTile(
+                          icon: Icons.schedule_rounded,
+                          label: 'My Shift',
+                          color: AppColors.primary,
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/shift/dashboard');
+                          },
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _QuickAccessTile(
-                        icon: Icons.person_rounded,
-                        label: 'My Profile',
-                        color: AppColors.secondary,
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/diagnostics');
-                        },
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _QuickAccessTile(
+                          icon: Icons.groups_rounded,
+                          label: 'Staff Presence',
+                          color: AppColors.success,
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/staff/presence');
+                          },
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickAccessTile(
+                          icon: Icons.crisis_alert_rounded,
+                          label: 'Alerts',
+                          color: AppColors.error,
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/manager/alerts');
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _QuickAccessTile(
+                          icon: Icons.person_rounded,
+                          label: 'My Profile',
+                          color: Colors.blue,
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/profile');
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
           ),
         );

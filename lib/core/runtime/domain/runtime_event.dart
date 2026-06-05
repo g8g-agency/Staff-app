@@ -34,6 +34,10 @@ enum RuntimeEventType {
   operationalAlertDismissed,
   // Floor analytics
   floorAnalyticsDelta,
+  // Order alerts (P3-STAFF-01)
+  orderAssigned,
+  orderReassigned,
+  orderReadyForPickup,
   // Session / epoch
   authSessionInvalidated,
   epochInvalidated,
@@ -93,6 +97,9 @@ class RuntimeEvent extends Equatable {
       case 'operational_alert_updated':  return RuntimeEventType.operationalAlertUpdated;
       case 'operational_alert_dismissed':return RuntimeEventType.operationalAlertDismissed;
       case 'floor_analytics_delta':      return RuntimeEventType.floorAnalyticsDelta;
+      case 'order_assigned':              return RuntimeEventType.orderAssigned;
+      case 'order_reassigned':            return RuntimeEventType.orderReassigned;
+      case 'ORDER_READY_FOR_PICKUP':      return RuntimeEventType.orderReadyForPickup;
       case 'auth_session_invalidated':   return RuntimeEventType.authSessionInvalidated;
       case 'epoch_invalidated':          return RuntimeEventType.epochInvalidated;
       default:                           return RuntimeEventType.unknown;
