@@ -72,6 +72,12 @@ class AuthRepository {
           pin: row['pin'] as String? ?? '',
           role: _mapRole(row['role'] as String?),
           section: row['section'] as String?,
+          developerModeEnabled: row['developer_mode_enabled'] as bool? ?? false,
+          profileCompleted: row['profile_completed'] as bool? ?? false,
+          profileSetupStep: row['profile_setup_step'] as int? ?? 1,
+          firstName: row['first_name'] as String? ?? '',
+          lastName: row['last_name'] as String? ?? '',
+          profileCompletedAt: row['profile_completed_at'] != null ? DateTime.tryParse(row['profile_completed_at']) : null,
         );
       }).toList();
     } catch (e) {
@@ -108,6 +114,21 @@ class AuthRepository {
       case 'server':
       default:
         return StaffRole.waiter;
+    }
+  }
+  Future<bool> updateProfile(String token, Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.patch(
+        '/api/v1/auth/staff/me/profile',
+        data: data,
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+      return response.statusCode == 200 && response.data['success'];
+    } catch (e) {
+      debugPrint('[AuthRepository] updateProfile error: $e');
+      return false;
     }
   }
 }

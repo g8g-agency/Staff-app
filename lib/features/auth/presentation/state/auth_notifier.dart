@@ -167,6 +167,10 @@ class AuthNotifier extends _$AuthNotifier {
     return false;
   }
 
+  void updateStaffSession(StaffMember updatedStaff) {
+    state = state.copyWith(loggedInStaff: updatedStaff);
+  }
+
   void endShift() {
     state = state.copyWith(
       isShiftStarted: false,
@@ -177,5 +181,42 @@ class AuthNotifier extends _$AuthNotifier {
 
   void logout() {
     state = const AuthState();
+  }
+
+  Future<bool> updateProfile(Map<String, dynamic> profileData) async {
+    if (state.loggedInStaff == null) return false;
+    
+    const secureStorage = SecureLocalStorage();
+    final token = await secureStorage.read('runtime_token') ?? '';
+    
+    final repo = ref.read(authRepositoryProvider);
+    
+    // Add staff_id to the request since the runtime_token belongs to the admin who registered the device
+    final dataToSend = Map<String, dynamic>.from(profileData);
+    dataToSend['staff_id'] = state.loggedInStaff!.id;
+    
+    final success = await repo.updateProfile(token, dataToSend);
+    
+    if (success) {
+      // Re-fetch staff data to reflect changes
+      await loadStaffForBranch();
+      
+      // Update logged in staff with new data locally just in case
+      final staff = state.loggedInStaff!;
+      final updatedStaff = staff.copyWith(
+        profileCompleted: profileData['profile_completed'] ?? staff.profileCompleted,
+        profileSetupStep: profileData['profile_setup_step'] ?? staff.profileSetupStep,
+        firstName: profileData['first_name'] ?? staff.firstName,
+        lastName: profileData['last_name'] ?? staff.lastName,
+        emergencyContactName: profileData['emergency_contact_name'] ?? staff.emergencyContactName,
+        emergencyContactNumber: profileData['emergency_contact_number'] ?? staff.emergencyContactNumber,
+        mobileNumber: profileData['mobile_number'] ?? staff.mobileNumber,
+        address: profileData['address'] ?? staff.address,
+        gender: profileData['gender'] ?? staff.gender,
+      );
+      state = state.copyWith(loggedInStaff: updatedStaff);
+    }
+    
+    return success;
   }
 }

@@ -23,61 +23,11 @@ class OperationalDashboardScreen extends ConsumerStatefulWidget {
 
 class _OperationalDashboardScreenState
     extends ConsumerState<OperationalDashboardScreen> {
-  final List<String> _simulatedLogs = [];
-  late Timer _logTimer;
-  final ScrollController _scrollController = ScrollController();
 
-  final List<String> _logTemplates = [
-    'ticket.created -> Table T2 | Burger + Soda',
-    'table.status_changed -> Table T5 (Available -> Occupied)',
-    'ticket.status_changed -> Preparing Table T3',
-    'ping -> branch_gateway (45ms latency)',
-    'ticket.ready -> Table T4 [Cheeseburger Ready]',
-    'waiter.called -> Table T1 Patio',
-    r'billing.payment_received -> Table T6 ($64.50)',
-    'sync.outbox -> 0 pending transactions',
-  ];
 
-  @override
-  void initState() {
-    super.initState();
-    _simulatedLogs.add('Websocket Operational stream connected.');
-    _simulatedLogs.add('Reconciliation completed: 0 delta events.');
 
-    // Simulate active WebSocket traffic ticker
-    _logTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
-      if (!mounted) return;
-      final timestamp = DateTime.now()
-          .toLocal()
-          .toString()
-          .split(' ')[1]
-          .substring(0, 8);
-      final template = _logTemplates[timer.tick % _logTemplates.length];
-      setState(() {
-        _simulatedLogs.add('[$timestamp] $template');
-        if (_simulatedLogs.length > 20) {
-          _simulatedLogs.removeAt(0);
-        }
-      });
-      // Scroll to bottom
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
-    });
-  }
 
-  @override
-  void dispose() {
-    _logTimer.cancel();
-    _scrollController.dispose();
-    super.dispose();
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -275,11 +225,6 @@ class _OperationalDashboardScreenState
                       completed: completedOrdersCount,
                       isDark: isDark,
                     ),
-
-                    SizedBox(height: AppSpacing.lg(context)),
-
-                    // Activity Feed
-                    _buildActivityFeed(context, isDark),
                   ],
                 ),
               ),
@@ -827,76 +772,7 @@ class _OperationalDashboardScreenState
     );
   }
 
-  // Activity Feed
-  Widget _buildActivityFeed(BuildContext context, bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Recent Activity',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        SizedBox(height: AppSpacing.sm(context)),
-        Container(
-          constraints: const BoxConstraints(maxHeight: 300),
-          padding: EdgeInsets.all(AppSpacing.md(context)),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-            ),
-          ),
-          child: ListView.separated(
-            shrinkWrap: true,
-            controller: _scrollController,
-            itemCount: _simulatedLogs.length,
-            separatorBuilder: (context, index) => Divider(
-              height: AppSpacing.sm(context),
-              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-            ),
-            itemBuilder: (context, index) {
-              final log = _simulatedLogs[index];
-              IconData icon = Icons.info_outline_rounded;
-              Color iconColor = isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.lightTextSecondary;
 
-              if (log.contains('ready')) {
-                icon = Icons.check_circle_outline_rounded;
-                iconColor = AppColors.success;
-              } else if (log.contains('error') || log.contains('outage')) {
-                icon = Icons.error_outline_rounded;
-                iconColor = AppColors.error;
-              } else if (log.contains('payment')) {
-                icon = Icons.payment_rounded;
-                iconColor = AppColors.primary;
-              }
-
-              return Row(
-                children: [
-                  Icon(icon, color: iconColor, size: 16),
-                  SizedBox(width: AppSpacing.sm(context)),
-                  Expanded(
-                    child: Text(
-                      log,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isDark
-                            ? AppColors.darkTextPrimary
-                            : AppColors.lightTextPrimary,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
-    ).animate().fadeIn(delay: 500.ms, duration: 400.ms);
-  }
 
   // Connection Badge
   Widget _buildConnectionBadge(dynamic branch, bool isDark) {
