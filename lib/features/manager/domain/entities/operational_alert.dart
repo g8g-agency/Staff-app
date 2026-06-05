@@ -5,6 +5,8 @@ enum AlertType {
   waiterCall,
   delayedOrder,
   pendingPayment,
+  newOrder,
+  orderReady,
 }
 
 enum AlertSeverity {
@@ -116,6 +118,10 @@ class OperationalAlert {
         return 'Delayed Order';
       case AlertType.pendingPayment:
         return 'Pending Payment';
+      case AlertType.newOrder:
+        return 'New Order';
+      case AlertType.orderReady:
+        return 'Order Ready';
     }
   }
 

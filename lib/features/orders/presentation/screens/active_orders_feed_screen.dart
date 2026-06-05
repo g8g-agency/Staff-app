@@ -7,7 +7,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/order.dart';
-import '../../providers/orders_providers.dart';
+import '../../domain/entities/order.dart';
+import '../state/orders_projection_provider.dart';
 
 enum OrderSlaStatus { safe, stage1, stage2, stage3 }
 
@@ -91,7 +92,6 @@ class _ActiveOrdersFeedScreenState extends ConsumerState<ActiveOrdersFeedScreen>
 
   @override
   Widget build(BuildContext context) {
-    final repository = ref.watch(ordersRepositoryProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -121,19 +121,11 @@ class _ActiveOrdersFeedScreenState extends ConsumerState<ActiveOrdersFeedScreen>
           const SizedBox(width: 8),
         ],
       ),
-      body: StreamBuilder<List<Order>>(
-        stream: repository.watchActiveOrders(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
+      body: Builder(
+        builder: (context) {
+          final ordersList = ref.watch(ordersProjectionProvider);
 
-          var orders = snapshot.data ?? [];
-          // Filter out completed and cancelled orders
-          orders = orders.where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled).toList();
+          var orders = ordersList.where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled).toList();
 
           // Apply Category Filter Chips
           if (_statusFilter != null) {

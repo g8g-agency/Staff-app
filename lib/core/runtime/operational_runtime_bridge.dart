@@ -41,6 +41,8 @@ import '../../features/kitchen/presentation/state/kitchen_runtime_providers.dart
 import '../../features/staff/presentation/state/staff_presence_governance_providers.dart';
 // Order alerts
 import '../../features/orders/presentation/state/order_alert_notifier.dart';
+import '../../features/orders/presentation/state/orders_projection_provider.dart';
+import '../../features/manager/presentation/state/manager_providers.dart';
 
 // ━━━━━━━━━━━━━━━━━━━━━━ BRIDGE ━━━━━━━━━━━━━━━━━━━━━━
 
@@ -224,11 +226,24 @@ class OperationalRuntimeBridge {
         await _store.applyValidatedEvent(event);
         break;
 
+<<<<<<< Updated upstream
       // ── Order Alert Domain ────────────────────────────────────────────────
       case RuntimeEventType.orderAssigned:
       case RuntimeEventType.orderReassigned:
       case RuntimeEventType.orderReadyForPickup:
         await _handleOrderAlertEvent(event);
+=======
+      case RuntimeEventType.operationalAlertCreated:
+      case RuntimeEventType.operationalAlertUpdated:
+        await _ref.read(operationalAlertsProvider.notifier).applyRemoteAlertUpdate(event.payload);
+        break;
+
+      case RuntimeEventType.operationalAlertDismissed:
+        final alertId = event.payload['alertId'] as String?;
+        if (alertId != null) {
+          await _ref.read(operationalAlertsProvider.notifier).applyRemoteAlertDismissed(alertId);
+        }
+>>>>>>> Stashed changes
         break;
 
       case RuntimeEventType.unknown:
@@ -527,8 +542,13 @@ class OperationalRuntimeBridge {
   Future<void> _rebuildOrdersProjection() async {
     debugPrint('[OperationalRuntimeBridge] Full rebuild: orders');
     final orders = _store.getAuthoritativeOrders();
+    
+    // Update Riverpod Provider for UI
+    _ref.read(ordersProjectionProvider.notifier).updateProjection(orders);
+
+    // Also update offline cache
     final repo = _ref.read(ordersRepositoryProvider);
-    await repo.syncOrders(orders); // Implement in OrdersRepository
+    await repo.syncOrders(orders); 
   }
 
   Future<void> _rebuildTablesProjection() async {

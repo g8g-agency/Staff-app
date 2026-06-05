@@ -6,6 +6,7 @@ import '../routing/app_router.dart';
 import '../core/theme/app_theme.dart';
 import '../core/network/realtime_sync_manager.dart';
 import '../core/runtime/runtime_lifecycle.dart';
+import '../features/alerts/presentation/widgets/non_blocking_alert_overlay.dart';
 
 class OrderlyyApp extends ConsumerWidget {
   const OrderlyyApp({super.key});
@@ -61,7 +62,7 @@ class OrderlyyApp extends ConsumerWidget {
             color: Theme.of(context).scaffoldBackgroundColor,
             child: SafeArea(
               // Respect device safe areas (notches, home indicators, etc.)
-              child: child,
+              child: NonBlockingAlertOverlay(child: child),
             ),
           ),
         );
