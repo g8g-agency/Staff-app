@@ -54,8 +54,7 @@ class MenuRepositoryImpl implements MenuRepository {
       }
 
       final response = await _dioClient.get(
-        '/snapshot/menu',
-        queryParameters: {'branch_id': branchId},
+        '/api/v1/public/branches/$branchId/menu-snapshot',
         options: Options(
           headers: headers,
           validateStatus: (status) => status == 200 || status == 304,
@@ -111,8 +110,7 @@ class MenuRepositoryImpl implements MenuRepository {
 
     try {
       final response = await _dioClient.get(
-        '/availability',
-        queryParameters: {'branch_id': branchId},
+        '/api/v1/public/branches/$branchId/menu-availability',
       );
 
       if (response.statusCode == 200 && response.data is Map) {

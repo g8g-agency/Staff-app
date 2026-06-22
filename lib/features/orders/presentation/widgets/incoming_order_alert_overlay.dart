@@ -14,6 +14,7 @@ import '../services/order_alert_audio_manager.dart';
 import 'pass_order_bottom_sheet.dart';
 import 'order_ready_popup.dart';
 import 'package:flutter/services.dart';
+import '../../providers/orders_realtime_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Root listener widget — attach inside ShellRoute builder
@@ -33,6 +34,9 @@ class _OrderAlertListenerState extends ConsumerState<OrderAlertListener> {
 
   @override
   Widget build(BuildContext context) {
+    // Keep real-time orders connection alive globally while the shell is mounted
+    ref.watch(ordersRealtimeProvider);
+
     ref.listen<IncomingOrderAlert?>(currentOrderAlertProvider, (prev, next) {
       if (next == null) {
         _dismissOverlay();

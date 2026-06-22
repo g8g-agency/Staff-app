@@ -1,5 +1,6 @@
 // lib/features/tables/data/repositories/tables_repository_impl.dart
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import '../../../../core/network/network_info.dart';
 import '../../../../core/network/offline_queue.dart';
 import '../../domain/entities/restaurant_table.dart';
@@ -108,9 +109,26 @@ class TablesRepositoryImpl implements TablesRepository {
 
     void startRemoteWatch() {
       remoteSub?.cancel();
+      debugPrint('[TablesRepository] Starting remote watch...');
       remoteSub = remote.watchTables().listen((remoteDtos) async {
-        await local.cacheTables(remoteDtos);
-      }, onError: (_) {});
+        debugPrint('[TablesRepository] Received ${remoteDtos.length} remote dtos from stream');
+        final currentCache = await local.getCachedTables();
+        debugPrint('[TablesRepository] Current cache count: ${currentCache.length}');
+        final mergedDtos = remoteDtos.map((newDto) {
+          final existing = currentCache.cast<TableDto?>().firstWhere(
+            (c) => c?.id == newDto.id, 
+            orElse: () => null,
+          );
+          if (existing != null && newDto.floorName == null) {
+            return newDto.copyWith(floorName: existing.floorName);
+          }
+          return newDto;
+        }).toList();
+        debugPrint('[TablesRepository] Caching ${mergedDtos.length} merged dtos');
+        await local.cacheTables(mergedDtos);
+      }, onError: (err) {
+        debugPrint('[TablesRepository] Remote watch stream error: $err');
+      });
     }
 
     final initialOnline = await networkInfo.isConnected;

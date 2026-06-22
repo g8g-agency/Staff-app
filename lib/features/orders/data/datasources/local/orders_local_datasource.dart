@@ -73,7 +73,8 @@ class OrdersLocalDatasourceImpl implements OrdersLocalDatasource {
   }
 
   @override
-  Stream<List<OrderDto>> watchCachedOrders() {
-    return _controller.stream;
+  Stream<List<OrderDto>> watchCachedOrders() async* {
+    yield _readFromPrefs();
+    yield* _controller.stream;
   }
 }

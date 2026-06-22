@@ -147,6 +147,7 @@ class WebSocketRealtimeTransport implements RealtimeTransport {
   void _onRawMessage(dynamic rawMessage) {
     final payload = _normalizePayload(rawMessage);
     if (payload == null) return;
+    debugPrint('[Transport] Raw message received: $payload');
 
     try {
       final jsonPayload = jsonDecode(payload) as Map<String, dynamic>;

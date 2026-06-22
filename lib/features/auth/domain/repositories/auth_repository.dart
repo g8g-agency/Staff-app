@@ -24,10 +24,23 @@ class AuthRepository {
 
       if (response.statusCode == 200 && response.data['success']) {
         final data = response.data['data'];
-        final accessToken = data['access_token'];
+        final accessToken = data['access_token'] as String;
+        final refreshToken = data['refresh_token'] as String;
         
         const secureStorage = SecureLocalStorage();
         await secureStorage.write('access_token', accessToken);
+        await secureStorage.write('refresh_token', refreshToken);
+        
+        // Tokens are stored in secure storage and sent as Bearer tokens to the backend.
+        // The Staff App routes all data through the backend REST API, but the Realtime
+        // subscription relies on direct Supabase Postgres replication, which enforces RLS.
+        // Thus, we must authenticate the Supabase client.
+        try {
+          await _supabase.auth.setSession(refreshToken);
+          debugPrint('[AuthRepository] Supabase client session established.');
+        } catch (e) {
+          debugPrint('[AuthRepository] Failed to set Supabase session: $e');
+        }
         
         // Use the token to fetch the context
         final contextResponse = await _dio.get(
@@ -42,6 +55,7 @@ class AuthRepository {
             'tenantId': contextResponse.data['data']['tenant']['id'],
             'branches': contextResponse.data['data']['branches'],
             'access_token': accessToken,
+            'refresh_token': refreshToken,
           };
         }
       }

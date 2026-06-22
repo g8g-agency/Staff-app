@@ -1,4 +1,5 @@
 // lib/features/orders/providers/orders_realtime_provider.dart
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../auth/presentation/state/auth_notifier.dart';
@@ -36,6 +37,7 @@ final ordersRealtimeProvider = Provider.autoDispose<void>((ref) {
   }
 
   service.onEvent.listen((event) {
+    debugPrint('[ordersRealtimeProvider] EVENT RECEIVED: type=${event.type}, status=${event.payload['status']}, payload=${event.payload}');
     if (event.type == RealtimeOrderEventType.insert) {
       alertService.playNewOrderAlert();
       orderAlertNotifier.enqueueAlert(event.payload);

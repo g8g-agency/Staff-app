@@ -110,13 +110,13 @@ class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
                 // Split Options
                 Text('Billing Divisions', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
                   children: [
                     ...[1, 2, 3, 4].map((count) {
                       final isSelected = _splitCount == count;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: ChoiceChip(
+                      return ChoiceChip(
                           selected: isSelected,
                           label: Text(count == 1 ? 'Single Pay' : 'Split / $count'),
                           onSelected: (selected) {
@@ -126,8 +126,7 @@ class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
                               });
                             }
                           },
-                        ),
-                      );
+                        );
                     }),
                   ],
                 ),
@@ -136,13 +135,13 @@ class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
                 // Tip Options
                 Text('Gratuity Selection', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
                   children: [
                     ...[0.10, 0.15, 0.20, 0.25].map((pct) {
                       final isSelected = _tipPercentage == pct;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: ChoiceChip(
+                      return ChoiceChip(
                           selected: isSelected,
                           label: Text('${(pct * 100).toInt()}%'),
                           onSelected: (selected) {
@@ -152,8 +151,7 @@ class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
                               });
                             }
                           },
-                        ),
-                      );
+                        );
                     }),
                   ],
                 ),
@@ -162,13 +160,13 @@ class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
                 // Payment Method
                 Text('Payment Gateway Options', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
                   children: [
                     ...['Card', 'Cash', 'Mobile Pay'].map((method) {
                       final isSelected = _paymentMethod == method;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: ChoiceChip(
+                      return ChoiceChip(
                           selected: isSelected,
                           label: Text(method),
                           onSelected: (selected) {
@@ -178,8 +176,7 @@ class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
                               });
                             }
                           },
-                        ),
-                      );
+                        );
                     }),
                   ],
                 ),

@@ -165,13 +165,13 @@ class _ReceiptPreviewContent extends ConsumerWidget {
               );
             }),
             const Divider(color: Colors.black38, height: 24, thickness: 1),
-            _buildReceiptRow('Subtotal:', '\$${subtotal.toStringAsFixed(2)}'),
-            _buildReceiptRow('VAT Tax (10%):', '\$${tax.toStringAsFixed(2)}'),
-            _buildReceiptRow('Service Charge (10%):', '\$${serviceCharge.toStringAsFixed(2)}'),
+            _buildReceiptRow('Subtotal:', '₹${subtotal.toStringAsFixed(2)}'),
+            _buildReceiptRow('VAT Tax (10%):', '₹${tax.toStringAsFixed(2)}'),
+            _buildReceiptRow('Service Charge (10%):', '₹${serviceCharge.toStringAsFixed(2)}'),
             const Divider(color: Colors.black38, height: 24, thickness: 1),
             _buildReceiptRow(
               'TOTAL AMOUNT:',
-              '\$${total.toStringAsFixed(2)}',
+              '₹${total.toStringAsFixed(2)}',
               isLarge: true,
             ),
             const SizedBox(height: 32),
@@ -234,7 +234,7 @@ class _ReceiptPreviewContent extends ConsumerWidget {
               final messenger = ScaffoldMessenger.of(context);
               await HapticFeedback.lightImpact();
               final printer = LocalPrinterService();
-              final rawBytes = 'ORDERLYY BISTRO\nTable: ${order.tableId}\nTotal: \$${total.toStringAsFixed(2)}\n';
+              final rawBytes = 'ORDERLYY BISTRO\nTable: ${order.tableId}\nTotal: ₹${total.toStringAsFixed(2)}\n';
               try {
                 await printer.printReceiptDraft('192.168.1.100', rawBytes);
                 messenger.showSnackBar(

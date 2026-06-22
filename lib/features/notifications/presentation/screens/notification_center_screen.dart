@@ -20,8 +20,15 @@ class NotificationCenterScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Notifications', style: TextStyle(fontWeight: FontWeight.w900)),
+            const Flexible(
+              child: Text(
+                'Notifications',
+                style: TextStyle(fontWeight: FontWeight.w900),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             if (unreadCount > 0) ...[
               const SizedBox(width: 8),
               Badge(
@@ -33,9 +40,9 @@ class NotificationCenterScreen extends ConsumerWidget {
         ),
         actions: [
           if (notifications.any((n) => !n.isRead))
-            TextButton.icon(
-              icon: const Icon(Icons.mark_chat_read_rounded, size: 18),
-              label: const Text('Mark All Read'),
+            IconButton(
+              icon: const Icon(Icons.mark_chat_read_rounded),
+              tooltip: 'Mark All Read',
               onPressed: () {
                 HapticFeedback.lightImpact();
                 ref.read(notificationsProvider.notifier).markAllAsRead();

@@ -21,8 +21,8 @@ abstract class MenuProductDto with _$MenuProductDto {
     required String id,
     required String name,
     required int priceInCents,
-    required String category,
-    required List<ModifierOptionDto> availableModifiers,
+    String? category,
+    @Default([]) List<ModifierOptionDto>? availableModifiers,
   }) = _MenuProductDto;
 
   factory MenuProductDto.fromJson(Map<String, dynamic> json) => _$MenuProductDtoFromJson(json);
@@ -34,8 +34,8 @@ abstract class OrderItemDto with _$OrderItemDto {
     required String id,
     required MenuProductDto product,
     required int quantity,
-    required List<ModifierOptionDto> selectedModifiers,
-    required int seatNumber,
+    @Default([]) List<ModifierOptionDto>? selectedModifiers,
+    int? seatNumber,
     required String status,
   }) = _OrderItemDto;
 
@@ -46,13 +46,13 @@ abstract class OrderItemDto with _$OrderItemDto {
 abstract class OrderDto with _$OrderDto {
   const factory OrderDto({
     required String id,
-    required String tableId,
+    String? tableId,
     required List<OrderItemDto> items,
     required String status,
     required String createdAt,
-    required String updatedAt,
-    @Default('John Doe') String waiterName,
-    @Default([]) List<String> cancelLogs,
+    String? updatedAt,
+    String? waiterName,
+    @Default([]) List<String>? cancelLogs,
   }) = _OrderDto;
 
   factory OrderDto.fromJson(Map<String, dynamic> json) => _$OrderDtoFromJson(json);

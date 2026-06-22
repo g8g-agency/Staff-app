@@ -25,10 +25,14 @@ _MenuProductDto _$MenuProductDtoFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       name: json['name'] as String,
       priceInCents: (json['priceInCents'] as num).toInt(),
-      category: json['category'] as String,
-      availableModifiers: (json['availableModifiers'] as List<dynamic>)
-          .map((e) => ModifierOptionDto.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      category: json['category'] as String?,
+      availableModifiers:
+          (json['availableModifiers'] as List<dynamic>?)
+              ?.map(
+                (e) => ModifierOptionDto.fromJson(e as Map<String, dynamic>),
+              )
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$MenuProductDtoToJson(_MenuProductDto instance) =>
@@ -45,10 +49,14 @@ _OrderItemDto _$OrderItemDtoFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       product: MenuProductDto.fromJson(json['product'] as Map<String, dynamic>),
       quantity: (json['quantity'] as num).toInt(),
-      selectedModifiers: (json['selectedModifiers'] as List<dynamic>)
-          .map((e) => ModifierOptionDto.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      seatNumber: (json['seatNumber'] as num).toInt(),
+      selectedModifiers:
+          (json['selectedModifiers'] as List<dynamic>?)
+              ?.map(
+                (e) => ModifierOptionDto.fromJson(e as Map<String, dynamic>),
+              )
+              .toList() ??
+          const [],
+      seatNumber: (json['seatNumber'] as num?)?.toInt(),
       status: json['status'] as String,
     );
 
@@ -64,14 +72,14 @@ Map<String, dynamic> _$OrderItemDtoToJson(_OrderItemDto instance) =>
 
 _OrderDto _$OrderDtoFromJson(Map<String, dynamic> json) => _OrderDto(
   id: json['id'] as String,
-  tableId: json['tableId'] as String,
+  tableId: json['tableId'] as String?,
   items: (json['items'] as List<dynamic>)
       .map((e) => OrderItemDto.fromJson(e as Map<String, dynamic>))
       .toList(),
   status: json['status'] as String,
   createdAt: json['createdAt'] as String,
-  updatedAt: json['updatedAt'] as String,
-  waiterName: json['waiterName'] as String? ?? 'John Doe',
+  updatedAt: json['updatedAt'] as String?,
+  waiterName: json['waiterName'] as String?,
   cancelLogs:
       (json['cancelLogs'] as List<dynamic>?)
           ?.map((e) => e as String)

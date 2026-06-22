@@ -265,9 +265,13 @@ class OperationalRuntimeBridge {
     // Only show alert if this event targets ME, or has no target (broadcast)
     if (assignedStaffId != null && assignedStaffId != currentStaffId) {
       debugPrint(
-        '[OperationalRuntimeBridge] ${event.type.name} for different staff ($assignedStaffId). Ignoring.',
+        '[OperationalRuntimeBridge] ${event.type.name} for different staff ($assignedStaffId) vs me ($currentStaffId). Temporarily allowing for testing!',
       );
-      return;
+      // return; // COMMENTED OUT FOR TESTING
+    } else {
+      debugPrint(
+        '[OperationalRuntimeBridge] ${event.type.name} targets me ($currentStaffId) or is broadcast. Proceeding.',
+      );
     }
 
     debugPrint(

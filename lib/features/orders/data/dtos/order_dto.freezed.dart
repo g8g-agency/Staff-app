@@ -284,7 +284,7 @@ as int,
 /// @nodoc
 mixin _$MenuProductDto {
 
- String get id; String get name; int get priceInCents; String get category; List<ModifierOptionDto> get availableModifiers;
+ String get id; String get name; int get priceInCents; String? get category; List<ModifierOptionDto>? get availableModifiers;
 /// Create a copy of MenuProductDto
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -317,7 +317,7 @@ abstract mixin class $MenuProductDtoCopyWith<$Res>  {
   factory $MenuProductDtoCopyWith(MenuProductDto value, $Res Function(MenuProductDto) _then) = _$MenuProductDtoCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, int priceInCents, String category, List<ModifierOptionDto> availableModifiers
+ String id, String name, int priceInCents, String? category, List<ModifierOptionDto>? availableModifiers
 });
 
 
@@ -334,14 +334,14 @@ class _$MenuProductDtoCopyWithImpl<$Res>
 
 /// Create a copy of MenuProductDto
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? priceInCents = null,Object? category = null,Object? availableModifiers = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? priceInCents = null,Object? category = freezed,Object? availableModifiers = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,priceInCents: null == priceInCents ? _self.priceInCents : priceInCents // ignore: cast_nullable_to_non_nullable
-as int,category: null == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
-as String,availableModifiers: null == availableModifiers ? _self.availableModifiers : availableModifiers // ignore: cast_nullable_to_non_nullable
-as List<ModifierOptionDto>,
+as int,category: freezed == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
+as String?,availableModifiers: freezed == availableModifiers ? _self.availableModifiers : availableModifiers // ignore: cast_nullable_to_non_nullable
+as List<ModifierOptionDto>?,
   ));
 }
 
@@ -426,7 +426,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  int priceInCents,  String category,  List<ModifierOptionDto> availableModifiers)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  int priceInCents,  String? category,  List<ModifierOptionDto>? availableModifiers)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _MenuProductDto() when $default != null:
 return $default(_that.id,_that.name,_that.priceInCents,_that.category,_that.availableModifiers);case _:
@@ -447,7 +447,7 @@ return $default(_that.id,_that.name,_that.priceInCents,_that.category,_that.avai
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  int priceInCents,  String category,  List<ModifierOptionDto> availableModifiers)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  int priceInCents,  String? category,  List<ModifierOptionDto>? availableModifiers)  $default,) {final _that = this;
 switch (_that) {
 case _MenuProductDto():
 return $default(_that.id,_that.name,_that.priceInCents,_that.category,_that.availableModifiers);case _:
@@ -467,7 +467,7 @@ return $default(_that.id,_that.name,_that.priceInCents,_that.category,_that.avai
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  int priceInCents,  String category,  List<ModifierOptionDto> availableModifiers)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  int priceInCents,  String? category,  List<ModifierOptionDto>? availableModifiers)?  $default,) {final _that = this;
 switch (_that) {
 case _MenuProductDto() when $default != null:
 return $default(_that.id,_that.name,_that.priceInCents,_that.category,_that.availableModifiers);case _:
@@ -482,18 +482,20 @@ return $default(_that.id,_that.name,_that.priceInCents,_that.category,_that.avai
 @JsonSerializable()
 
 class _MenuProductDto implements MenuProductDto {
-  const _MenuProductDto({required this.id, required this.name, required this.priceInCents, required this.category, required final  List<ModifierOptionDto> availableModifiers}): _availableModifiers = availableModifiers;
+  const _MenuProductDto({required this.id, required this.name, required this.priceInCents, this.category, final  List<ModifierOptionDto>? availableModifiers = const []}): _availableModifiers = availableModifiers;
   factory _MenuProductDto.fromJson(Map<String, dynamic> json) => _$MenuProductDtoFromJson(json);
 
 @override final  String id;
 @override final  String name;
 @override final  int priceInCents;
-@override final  String category;
- final  List<ModifierOptionDto> _availableModifiers;
-@override List<ModifierOptionDto> get availableModifiers {
+@override final  String? category;
+ final  List<ModifierOptionDto>? _availableModifiers;
+@override@JsonKey() List<ModifierOptionDto>? get availableModifiers {
+  final value = _availableModifiers;
+  if (value == null) return null;
   if (_availableModifiers is EqualUnmodifiableListView) return _availableModifiers;
   // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(_availableModifiers);
+  return EqualUnmodifiableListView(value);
 }
 
 
@@ -530,7 +532,7 @@ abstract mixin class _$MenuProductDtoCopyWith<$Res> implements $MenuProductDtoCo
   factory _$MenuProductDtoCopyWith(_MenuProductDto value, $Res Function(_MenuProductDto) _then) = __$MenuProductDtoCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, int priceInCents, String category, List<ModifierOptionDto> availableModifiers
+ String id, String name, int priceInCents, String? category, List<ModifierOptionDto>? availableModifiers
 });
 
 
@@ -547,14 +549,14 @@ class __$MenuProductDtoCopyWithImpl<$Res>
 
 /// Create a copy of MenuProductDto
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? priceInCents = null,Object? category = null,Object? availableModifiers = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? priceInCents = null,Object? category = freezed,Object? availableModifiers = freezed,}) {
   return _then(_MenuProductDto(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,priceInCents: null == priceInCents ? _self.priceInCents : priceInCents // ignore: cast_nullable_to_non_nullable
-as int,category: null == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
-as String,availableModifiers: null == availableModifiers ? _self._availableModifiers : availableModifiers // ignore: cast_nullable_to_non_nullable
-as List<ModifierOptionDto>,
+as int,category: freezed == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
+as String?,availableModifiers: freezed == availableModifiers ? _self._availableModifiers : availableModifiers // ignore: cast_nullable_to_non_nullable
+as List<ModifierOptionDto>?,
   ));
 }
 
@@ -565,7 +567,7 @@ as List<ModifierOptionDto>,
 /// @nodoc
 mixin _$OrderItemDto {
 
- String get id; MenuProductDto get product; int get quantity; List<ModifierOptionDto> get selectedModifiers; int get seatNumber; String get status;
+ String get id; MenuProductDto get product; int get quantity; List<ModifierOptionDto>? get selectedModifiers; int? get seatNumber; String get status;
 /// Create a copy of OrderItemDto
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -598,7 +600,7 @@ abstract mixin class $OrderItemDtoCopyWith<$Res>  {
   factory $OrderItemDtoCopyWith(OrderItemDto value, $Res Function(OrderItemDto) _then) = _$OrderItemDtoCopyWithImpl;
 @useResult
 $Res call({
- String id, MenuProductDto product, int quantity, List<ModifierOptionDto> selectedModifiers, int seatNumber, String status
+ String id, MenuProductDto product, int quantity, List<ModifierOptionDto>? selectedModifiers, int? seatNumber, String status
 });
 
 
@@ -615,14 +617,14 @@ class _$OrderItemDtoCopyWithImpl<$Res>
 
 /// Create a copy of OrderItemDto
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? product = null,Object? quantity = null,Object? selectedModifiers = null,Object? seatNumber = null,Object? status = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? product = null,Object? quantity = null,Object? selectedModifiers = freezed,Object? seatNumber = freezed,Object? status = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,product: null == product ? _self.product : product // ignore: cast_nullable_to_non_nullable
 as MenuProductDto,quantity: null == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
-as int,selectedModifiers: null == selectedModifiers ? _self.selectedModifiers : selectedModifiers // ignore: cast_nullable_to_non_nullable
-as List<ModifierOptionDto>,seatNumber: null == seatNumber ? _self.seatNumber : seatNumber // ignore: cast_nullable_to_non_nullable
-as int,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as int,selectedModifiers: freezed == selectedModifiers ? _self.selectedModifiers : selectedModifiers // ignore: cast_nullable_to_non_nullable
+as List<ModifierOptionDto>?,seatNumber: freezed == seatNumber ? _self.seatNumber : seatNumber // ignore: cast_nullable_to_non_nullable
+as int?,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -717,7 +719,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  MenuProductDto product,  int quantity,  List<ModifierOptionDto> selectedModifiers,  int seatNumber,  String status)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  MenuProductDto product,  int quantity,  List<ModifierOptionDto>? selectedModifiers,  int? seatNumber,  String status)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _OrderItemDto() when $default != null:
 return $default(_that.id,_that.product,_that.quantity,_that.selectedModifiers,_that.seatNumber,_that.status);case _:
@@ -738,7 +740,7 @@ return $default(_that.id,_that.product,_that.quantity,_that.selectedModifiers,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  MenuProductDto product,  int quantity,  List<ModifierOptionDto> selectedModifiers,  int seatNumber,  String status)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  MenuProductDto product,  int quantity,  List<ModifierOptionDto>? selectedModifiers,  int? seatNumber,  String status)  $default,) {final _that = this;
 switch (_that) {
 case _OrderItemDto():
 return $default(_that.id,_that.product,_that.quantity,_that.selectedModifiers,_that.seatNumber,_that.status);case _:
@@ -758,7 +760,7 @@ return $default(_that.id,_that.product,_that.quantity,_that.selectedModifiers,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  MenuProductDto product,  int quantity,  List<ModifierOptionDto> selectedModifiers,  int seatNumber,  String status)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  MenuProductDto product,  int quantity,  List<ModifierOptionDto>? selectedModifiers,  int? seatNumber,  String status)?  $default,) {final _that = this;
 switch (_that) {
 case _OrderItemDto() when $default != null:
 return $default(_that.id,_that.product,_that.quantity,_that.selectedModifiers,_that.seatNumber,_that.status);case _:
@@ -773,20 +775,22 @@ return $default(_that.id,_that.product,_that.quantity,_that.selectedModifiers,_t
 @JsonSerializable()
 
 class _OrderItemDto implements OrderItemDto {
-  const _OrderItemDto({required this.id, required this.product, required this.quantity, required final  List<ModifierOptionDto> selectedModifiers, required this.seatNumber, required this.status}): _selectedModifiers = selectedModifiers;
+  const _OrderItemDto({required this.id, required this.product, required this.quantity, final  List<ModifierOptionDto>? selectedModifiers = const [], this.seatNumber, required this.status}): _selectedModifiers = selectedModifiers;
   factory _OrderItemDto.fromJson(Map<String, dynamic> json) => _$OrderItemDtoFromJson(json);
 
 @override final  String id;
 @override final  MenuProductDto product;
 @override final  int quantity;
- final  List<ModifierOptionDto> _selectedModifiers;
-@override List<ModifierOptionDto> get selectedModifiers {
+ final  List<ModifierOptionDto>? _selectedModifiers;
+@override@JsonKey() List<ModifierOptionDto>? get selectedModifiers {
+  final value = _selectedModifiers;
+  if (value == null) return null;
   if (_selectedModifiers is EqualUnmodifiableListView) return _selectedModifiers;
   // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(_selectedModifiers);
+  return EqualUnmodifiableListView(value);
 }
 
-@override final  int seatNumber;
+@override final  int? seatNumber;
 @override final  String status;
 
 /// Create a copy of OrderItemDto
@@ -822,7 +826,7 @@ abstract mixin class _$OrderItemDtoCopyWith<$Res> implements $OrderItemDtoCopyWi
   factory _$OrderItemDtoCopyWith(_OrderItemDto value, $Res Function(_OrderItemDto) _then) = __$OrderItemDtoCopyWithImpl;
 @override @useResult
 $Res call({
- String id, MenuProductDto product, int quantity, List<ModifierOptionDto> selectedModifiers, int seatNumber, String status
+ String id, MenuProductDto product, int quantity, List<ModifierOptionDto>? selectedModifiers, int? seatNumber, String status
 });
 
 
@@ -839,14 +843,14 @@ class __$OrderItemDtoCopyWithImpl<$Res>
 
 /// Create a copy of OrderItemDto
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? product = null,Object? quantity = null,Object? selectedModifiers = null,Object? seatNumber = null,Object? status = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? product = null,Object? quantity = null,Object? selectedModifiers = freezed,Object? seatNumber = freezed,Object? status = null,}) {
   return _then(_OrderItemDto(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,product: null == product ? _self.product : product // ignore: cast_nullable_to_non_nullable
 as MenuProductDto,quantity: null == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
-as int,selectedModifiers: null == selectedModifiers ? _self._selectedModifiers : selectedModifiers // ignore: cast_nullable_to_non_nullable
-as List<ModifierOptionDto>,seatNumber: null == seatNumber ? _self.seatNumber : seatNumber // ignore: cast_nullable_to_non_nullable
-as int,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as int,selectedModifiers: freezed == selectedModifiers ? _self._selectedModifiers : selectedModifiers // ignore: cast_nullable_to_non_nullable
+as List<ModifierOptionDto>?,seatNumber: freezed == seatNumber ? _self.seatNumber : seatNumber // ignore: cast_nullable_to_non_nullable
+as int?,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -867,7 +871,7 @@ $MenuProductDtoCopyWith<$Res> get product {
 /// @nodoc
 mixin _$OrderDto {
 
- String get id; String get tableId; List<OrderItemDto> get items; String get status; String get createdAt; String get updatedAt; String get waiterName; List<String> get cancelLogs;
+ String get id; String? get tableId; List<OrderItemDto> get items; String get status; String get createdAt; String? get updatedAt; String? get waiterName; List<String>? get cancelLogs;
 /// Create a copy of OrderDto
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -900,7 +904,7 @@ abstract mixin class $OrderDtoCopyWith<$Res>  {
   factory $OrderDtoCopyWith(OrderDto value, $Res Function(OrderDto) _then) = _$OrderDtoCopyWithImpl;
 @useResult
 $Res call({
- String id, String tableId, List<OrderItemDto> items, String status, String createdAt, String updatedAt, String waiterName, List<String> cancelLogs
+ String id, String? tableId, List<OrderItemDto> items, String status, String createdAt, String? updatedAt, String? waiterName, List<String>? cancelLogs
 });
 
 
@@ -917,17 +921,17 @@ class _$OrderDtoCopyWithImpl<$Res>
 
 /// Create a copy of OrderDto
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? tableId = null,Object? items = null,Object? status = null,Object? createdAt = null,Object? updatedAt = null,Object? waiterName = null,Object? cancelLogs = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? tableId = freezed,Object? items = null,Object? status = null,Object? createdAt = null,Object? updatedAt = freezed,Object? waiterName = freezed,Object? cancelLogs = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,tableId: null == tableId ? _self.tableId : tableId // ignore: cast_nullable_to_non_nullable
-as String,items: null == items ? _self.items : items // ignore: cast_nullable_to_non_nullable
+as String,tableId: freezed == tableId ? _self.tableId : tableId // ignore: cast_nullable_to_non_nullable
+as String?,items: null == items ? _self.items : items // ignore: cast_nullable_to_non_nullable
 as List<OrderItemDto>,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as String,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
-as String,waiterName: null == waiterName ? _self.waiterName : waiterName // ignore: cast_nullable_to_non_nullable
-as String,cancelLogs: null == cancelLogs ? _self.cancelLogs : cancelLogs // ignore: cast_nullable_to_non_nullable
-as List<String>,
+as String,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as String?,waiterName: freezed == waiterName ? _self.waiterName : waiterName // ignore: cast_nullable_to_non_nullable
+as String?,cancelLogs: freezed == cancelLogs ? _self.cancelLogs : cancelLogs // ignore: cast_nullable_to_non_nullable
+as List<String>?,
   ));
 }
 
@@ -1012,7 +1016,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String tableId,  List<OrderItemDto> items,  String status,  String createdAt,  String updatedAt,  String waiterName,  List<String> cancelLogs)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String? tableId,  List<OrderItemDto> items,  String status,  String createdAt,  String? updatedAt,  String? waiterName,  List<String>? cancelLogs)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _OrderDto() when $default != null:
 return $default(_that.id,_that.tableId,_that.items,_that.status,_that.createdAt,_that.updatedAt,_that.waiterName,_that.cancelLogs);case _:
@@ -1033,7 +1037,7 @@ return $default(_that.id,_that.tableId,_that.items,_that.status,_that.createdAt,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String tableId,  List<OrderItemDto> items,  String status,  String createdAt,  String updatedAt,  String waiterName,  List<String> cancelLogs)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String? tableId,  List<OrderItemDto> items,  String status,  String createdAt,  String? updatedAt,  String? waiterName,  List<String>? cancelLogs)  $default,) {final _that = this;
 switch (_that) {
 case _OrderDto():
 return $default(_that.id,_that.tableId,_that.items,_that.status,_that.createdAt,_that.updatedAt,_that.waiterName,_that.cancelLogs);case _:
@@ -1053,7 +1057,7 @@ return $default(_that.id,_that.tableId,_that.items,_that.status,_that.createdAt,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String tableId,  List<OrderItemDto> items,  String status,  String createdAt,  String updatedAt,  String waiterName,  List<String> cancelLogs)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String? tableId,  List<OrderItemDto> items,  String status,  String createdAt,  String? updatedAt,  String? waiterName,  List<String>? cancelLogs)?  $default,) {final _that = this;
 switch (_that) {
 case _OrderDto() when $default != null:
 return $default(_that.id,_that.tableId,_that.items,_that.status,_that.createdAt,_that.updatedAt,_that.waiterName,_that.cancelLogs);case _:
@@ -1068,11 +1072,11 @@ return $default(_that.id,_that.tableId,_that.items,_that.status,_that.createdAt,
 @JsonSerializable()
 
 class _OrderDto implements OrderDto {
-  const _OrderDto({required this.id, required this.tableId, required final  List<OrderItemDto> items, required this.status, required this.createdAt, required this.updatedAt, this.waiterName = 'John Doe', final  List<String> cancelLogs = const []}): _items = items,_cancelLogs = cancelLogs;
+  const _OrderDto({required this.id, this.tableId, required final  List<OrderItemDto> items, required this.status, required this.createdAt, this.updatedAt, this.waiterName, final  List<String>? cancelLogs = const []}): _items = items,_cancelLogs = cancelLogs;
   factory _OrderDto.fromJson(Map<String, dynamic> json) => _$OrderDtoFromJson(json);
 
 @override final  String id;
-@override final  String tableId;
+@override final  String? tableId;
  final  List<OrderItemDto> _items;
 @override List<OrderItemDto> get items {
   if (_items is EqualUnmodifiableListView) return _items;
@@ -1082,13 +1086,15 @@ class _OrderDto implements OrderDto {
 
 @override final  String status;
 @override final  String createdAt;
-@override final  String updatedAt;
-@override@JsonKey() final  String waiterName;
- final  List<String> _cancelLogs;
-@override@JsonKey() List<String> get cancelLogs {
+@override final  String? updatedAt;
+@override final  String? waiterName;
+ final  List<String>? _cancelLogs;
+@override@JsonKey() List<String>? get cancelLogs {
+  final value = _cancelLogs;
+  if (value == null) return null;
   if (_cancelLogs is EqualUnmodifiableListView) return _cancelLogs;
   // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(_cancelLogs);
+  return EqualUnmodifiableListView(value);
 }
 
 
@@ -1125,7 +1131,7 @@ abstract mixin class _$OrderDtoCopyWith<$Res> implements $OrderDtoCopyWith<$Res>
   factory _$OrderDtoCopyWith(_OrderDto value, $Res Function(_OrderDto) _then) = __$OrderDtoCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String tableId, List<OrderItemDto> items, String status, String createdAt, String updatedAt, String waiterName, List<String> cancelLogs
+ String id, String? tableId, List<OrderItemDto> items, String status, String createdAt, String? updatedAt, String? waiterName, List<String>? cancelLogs
 });
 
 
@@ -1142,17 +1148,17 @@ class __$OrderDtoCopyWithImpl<$Res>
 
 /// Create a copy of OrderDto
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? tableId = null,Object? items = null,Object? status = null,Object? createdAt = null,Object? updatedAt = null,Object? waiterName = null,Object? cancelLogs = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? tableId = freezed,Object? items = null,Object? status = null,Object? createdAt = null,Object? updatedAt = freezed,Object? waiterName = freezed,Object? cancelLogs = freezed,}) {
   return _then(_OrderDto(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,tableId: null == tableId ? _self.tableId : tableId // ignore: cast_nullable_to_non_nullable
-as String,items: null == items ? _self._items : items // ignore: cast_nullable_to_non_nullable
+as String,tableId: freezed == tableId ? _self.tableId : tableId // ignore: cast_nullable_to_non_nullable
+as String?,items: null == items ? _self._items : items // ignore: cast_nullable_to_non_nullable
 as List<OrderItemDto>,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as String,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
-as String,waiterName: null == waiterName ? _self.waiterName : waiterName // ignore: cast_nullable_to_non_nullable
-as String,cancelLogs: null == cancelLogs ? _self._cancelLogs : cancelLogs // ignore: cast_nullable_to_non_nullable
-as List<String>,
+as String,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as String?,waiterName: freezed == waiterName ? _self.waiterName : waiterName // ignore: cast_nullable_to_non_nullable
+as String?,cancelLogs: freezed == cancelLogs ? _self._cancelLogs : cancelLogs // ignore: cast_nullable_to_non_nullable
+as List<String>?,
   ));
 }
 

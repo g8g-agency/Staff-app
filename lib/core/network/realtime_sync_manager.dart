@@ -83,12 +83,6 @@ class RealtimeSyncManager {
   RealtimeSyncManager(this.ref)
     : _transport = ref.read(realtimeTransportProvider) {
     _eventController.stream.listen(_processSyncEvent);
-    _transportSubscription = _transport.messages.listen(
-      _onTransportMessage,
-      onDone: _onDisconnected,
-      onError: _onError,
-      cancelOnError: false,
-    );
     // Defer connection so this provider finishes building before pushing any
     // state updates into realtimeStateProvider (Riverpod init-phase rule).
     Future.microtask(connectLocal);
@@ -103,6 +97,13 @@ class RealtimeSyncManager {
     _cancelReconnectTimer();
     _cancelHeartbeat();
     _closeChannel();
+
+    _transportSubscription = _transport.messages.listen(
+      _onTransportMessage,
+      onDone: _onDisconnected,
+      onError: _onError,
+      cancelOnError: false,
+    );
 
     debugPrint('[SYNC] Connecting to realtime transport...');
     _updateState(RealtimeConnectionState.reconnecting);
@@ -176,6 +177,7 @@ class RealtimeSyncManager {
   }
 
   void _onTransportMessage(RealtimeTransportMessage message) {
+    debugPrint('[SYNC] _onTransportMessage received message: ${message.rawPayload}');
     _lastMessageAt = DateTime.now();
     _resetHeartbeatTimeout();
 
@@ -202,6 +204,15 @@ class RealtimeSyncManager {
       // Handle heartbeat acknowledgment messages
       if (data['type'] == 'pong') {
         debugPrint('[SYNC] Heartbeat ACK received.');
+        return;
+      }
+
+      // Handle server-initiated ping — respond with pong to keep connection alive
+      if (data['type'] == 'server_ping') {
+        debugPrint('[SYNC] Server ping received — sending pong.');
+        _transport.send({'type': 'pong'}).catchError((e) {
+          debugPrint('[SYNC] Failed to send pong response: $e');
+        });
         return;
       }
 

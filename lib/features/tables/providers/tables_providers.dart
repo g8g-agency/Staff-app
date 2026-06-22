@@ -1,6 +1,5 @@
 // lib/features/tables/providers/tables_providers.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../bootstrap/bootstrap.dart';
 import '../application/use_cases/update_table_status_use_case.dart';
 import '../application/use_cases/watch_tables_use_case.dart';
@@ -9,20 +8,19 @@ import '../data/datasources/remote/tables_remote_datasource.dart';
 import '../data/datasources/remote/tables_remote_datasource_impl.dart';
 import '../data/repositories/tables_repository_impl.dart';
 import '../domain/repositories/tables_repository.dart';
-
 import '../../../../core/network/network_providers.dart';
 import '../../auth/presentation/state/auth_notifier.dart';
 
-// 1. Core clients
-final supabaseClientProvider = Provider<SupabaseClient>((ref) => Supabase.instance.client);
-
-// 2. Data Sources
+// 1. Remote Datasource — uses DioClient (backend REST API) instead of Supabase client
+// Token is read lazily from SecureLocalStorage inside the datasource on each request.
 final tablesRemoteDatasourceProvider = Provider<TablesRemoteDatasource>((ref) {
-  final client = ref.watch(supabaseClientProvider);
+  final dio = ref.watch(dioClientProvider);
   final authState = ref.watch(authNotifierProvider);
-  return TablesRemoteDatasourceImpl(client, authState.selectedBranch?.id ?? '');
+  final branchId = authState.selectedBranch?.id ?? '';
+  return TablesRemoteDatasourceImpl(dio, branchId);
 });
 
+// 2. Local Datasource
 final tablesLocalDatasourceProvider = Provider((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return TablesLocalDatasourceImpl(prefs);
@@ -34,7 +32,7 @@ final tablesRepositoryProvider = Provider<TablesRepository>((ref) {
   final local = ref.watch(tablesLocalDatasourceProvider);
   final network = ref.watch(networkInfoProvider);
   final offlineQueue = ref.watch(offlineQueueManagerProvider);
-  
+
   return TablesRepositoryImpl(
     remote: remote,
     local: local,

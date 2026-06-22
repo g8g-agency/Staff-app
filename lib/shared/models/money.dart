@@ -7,13 +7,13 @@ class Money extends Equatable {
 
   const Money({
     required this.amountInCents,
-    this.currency = 'USD',
+    this.currency = 'INR',
   });
 
   double get asDouble => amountInCents / 100.0;
 
   String get formatted {
-    final symbol = currency == 'USD' ? '\$' : currency;
+    final symbol = currency == 'INR' ? '₹' : currency;
     return '$symbol${asDouble.toStringAsFixed(2)}';
   }
 

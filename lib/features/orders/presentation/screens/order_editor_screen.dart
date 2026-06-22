@@ -9,9 +9,10 @@ import '../../../../core/widgets/sync_state_chip.dart';
 import '../../../menu/presentation/state/menu_providers.dart';
 import '../../../menu/presentation/widgets/menu_error_state.dart';
 import '../../../menu/presentation/widgets/menu_skeleton_loader.dart';
-import '../../domain/entities/menu_product.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/entities/order_item.dart';
+import '../../domain/entities/menu_product.dart';
+import '../../../menu/domain/entities/menu_snapshot.dart';
 import '../state/active_order_notifier.dart';
 import '../widgets/modifier_selector_sheet.dart';
 import '../../providers/orders_providers.dart';
@@ -155,7 +156,7 @@ class _OrderEditorScreenState extends ConsumerState<OrderEditorScreen> {
   }
 
   Widget _buildMenuBrowserSection(
-    AsyncValue menuSnapshotAsync,
+    AsyncValue<MenuSnapshot> menuSnapshotAsync,
     List<MenuProduct> products,
     Map<String, bool> availabilityMap,
     ThemeData theme,

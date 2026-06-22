@@ -60,6 +60,7 @@ class OrdersRealtimeService {
           table: 'orders',
           filter: filter,
           callback: (payload) {
+            debugPrint('[OrdersRealtimeService] RECEIVED PostgresChanges update: ${payload.newRecord}');
             final receivedBranchId = payload.newRecord['branch_id'];
             if (receivedBranchId != _branchId) {
               debugPrint('[SECURITY ALERT] Wrong branch update received!');

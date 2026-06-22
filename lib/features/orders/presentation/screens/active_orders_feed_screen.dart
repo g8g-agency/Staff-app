@@ -9,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/order.dart';
 import '../state/orders_projection_provider.dart';
 import '../../providers/orders_realtime_provider.dart';
+import '../../../tables/presentation/state/table_grid_notifier.dart';
 
 enum OrderSlaStatus { safe, stage1, stage2, stage3 }
 
@@ -257,14 +258,28 @@ class _ActiveOrdersFeedScreenState extends ConsumerState<ActiveOrdersFeedScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Table ${order.tableId}',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 18,
-                        color: isDark ? Colors.white : const Color(0xFF1A1C1E),
+                    Expanded(
+                      child: Consumer(
+                        builder: (context, ref, child) {
+                          final tablesAsync = ref.watch(tableGridNotifierProvider);
+                          final tableNumber = tablesAsync.valueOrNull?.tables
+                                  .where((t) => t.id == order.tableId)
+                                  .firstOrNull?.label ??
+                              order.tableId.substring(0, 4);
+
+                          return Text(
+                            'Order #${order.id.substring(0, 4).toUpperCase()} • Table $tableNumber',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                              color: isDark ? Colors.white : const Color(0xFF1A1C1E),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        },
                       ),
                     ),
+                    const SizedBox(width: 8),
                   Row(
                     children: [
                       Container(

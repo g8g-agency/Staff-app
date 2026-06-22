@@ -42,7 +42,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                         // Header & Zone Toggle
                         stateAsync.when(
                           loading: () => _buildPageHeader(isDark),
-                          error: (_, __) => _buildPageHeader(isDark),
+                          error: (_, _) => _buildPageHeader(isDark),
                           data: (state) {
                             // Extract unique floor names from tables
                             final floorNames = <String>{'All'};
@@ -264,7 +264,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
       onTap: () => context.push('/tables/${table.id}'),
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8F9FA),
           borderRadius: BorderRadius.circular(16),
@@ -278,14 +278,19 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  table.label,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white54 : const Color(0xFF545C64),
+                Expanded(
+                  child: Text(
+                    table.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white54 : const Color(0xFF545C64),
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
@@ -313,14 +318,14 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
   }
 
   Widget _buildOccupiedCard(RestaurantTable table, bool isDark) {
-    final amount = table.activeOrderId != null ? '\$120' : '\$0'; // Mock amounts
+    final amount = table.activeOrderId != null ? '₹120' : '₹0'; // Mock amounts
     const time = '45m';
     
     return InkWell(
       onTap: () => context.push('/tables/${table.id}'),
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1E293B) : Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -334,14 +339,19 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  table.label,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                Expanded(
+                  child: Text(
+                    table.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
@@ -377,22 +387,22 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.group_rounded, size: 18, color: isDark ? Colors.white54 : const Color(0xFF5D3F3C)),
+                      Icon(Icons.group_rounded, size: 16, color: isDark ? Colors.white54 : const Color(0xFF5D3F3C)),
                       const SizedBox(width: 4),
-                      Text('${table.occupiedSeats.isNotEmpty ? table.occupiedSeats.length : table.capacity}', style: GoogleFonts.plusJakartaSans(color: isDark ? Colors.white54 : const Color(0xFF5D3F3C))),
+                      Text('${table.occupiedSeats.isNotEmpty ? table.occupiedSeats.length : table.capacity}', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: isDark ? Colors.white54 : const Color(0xFF5D3F3C))),
                     ],
                   ),
                   Row(
                     children: [
-                      Icon(Icons.schedule_rounded, size: 18, color: isDark ? Colors.white54 : const Color(0xFF5D3F3C)),
+                      Icon(Icons.schedule_rounded, size: 16, color: isDark ? Colors.white54 : const Color(0xFF5D3F3C)),
                       const SizedBox(width: 4),
-                      Text(time, style: GoogleFonts.plusJakartaSans(color: isDark ? Colors.white54 : const Color(0xFF5D3F3C))),
+                      Text(time, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: isDark ? Colors.white54 : const Color(0xFF5D3F3C))),
                     ],
                   ),
                   Text(
                     amount,
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
@@ -411,7 +421,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
       onTap: () => context.push('/tables/${table.id}'),
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         decoration: BoxDecoration(
           color: const Color(0xFFFFDAD6),
           borderRadius: BorderRadius.circular(16),
@@ -426,14 +436,19 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  table.label,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF93000A),
+                Expanded(
+                  child: Text(
+                    table.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF93000A),
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
@@ -469,22 +484,22 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.group_rounded, size: 18, color: Color(0xFF93000A)),
+                      const Icon(Icons.group_rounded, size: 16, color: Color(0xFF93000A)),
                       const SizedBox(width: 4),
-                      Text('${table.occupiedSeats.isNotEmpty ? table.occupiedSeats.length : table.capacity}', style: GoogleFonts.plusJakartaSans(color: const Color(0xFF93000A))),
+                      Text('${table.occupiedSeats.isNotEmpty ? table.occupiedSeats.length : table.capacity}', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: const Color(0xFF93000A))),
                     ],
                   ),
                   Row(
                     children: [
-                      const Icon(Icons.schedule_rounded, size: 18, color: Color(0xFF93000A)),
+                      const Icon(Icons.schedule_rounded, size: 16, color: Color(0xFF93000A)),
                       const SizedBox(width: 4),
-                      Text('12m', style: GoogleFonts.plusJakartaSans(color: const Color(0xFF93000A))),
+                      Text('12m', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: const Color(0xFF93000A))),
                     ],
                   ),
                   Text(
-                    '\$45',
+                    '₹45',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF93000A),
                     ),
@@ -503,7 +518,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
       onTap: () => context.push('/tables/${table.id}'),
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF334155) : const Color(0xFFDBE4ED),
           borderRadius: BorderRadius.circular(16),
@@ -517,14 +532,19 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  table.label,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : const Color(0xFF3F484F),
+                Expanded(
+                  child: Text(
+                    table.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : const Color(0xFF3F484F),
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
@@ -560,22 +580,22 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.group_rounded, size: 18, color: isDark ? Colors.white : const Color(0xFF3F484F)),
+                      Icon(Icons.group_rounded, size: 16, color: isDark ? Colors.white : const Color(0xFF3F484F)),
                       const SizedBox(width: 4),
-                      Text('${table.occupiedSeats.isNotEmpty ? table.occupiedSeats.length : table.capacity}', style: GoogleFonts.plusJakartaSans(color: isDark ? Colors.white : const Color(0xFF3F484F))),
+                      Text('${table.occupiedSeats.isNotEmpty ? table.occupiedSeats.length : table.capacity}', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: isDark ? Colors.white : const Color(0xFF3F484F))),
                     ],
                   ),
                   Row(
                     children: [
-                      Icon(Icons.schedule_rounded, size: 18, color: isDark ? Colors.white : const Color(0xFF3F484F)),
+                      Icon(Icons.schedule_rounded, size: 16, color: isDark ? Colors.white : const Color(0xFF3F484F)),
                       const SizedBox(width: 4),
-                      Text('90m', style: GoogleFonts.plusJakartaSans(color: isDark ? Colors.white : const Color(0xFF3F484F))),
+                      Text('90m', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: isDark ? Colors.white : const Color(0xFF3F484F))),
                     ],
                   ),
                   Text(
-                    '\$310',
+                    '₹310',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: isDark ? Colors.white : const Color(0xFF3F484F),
                     ),

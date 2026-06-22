@@ -115,7 +115,7 @@ class _TableSplitScreenState extends ConsumerState<TableSplitScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
                                     Text('UNASSIGNED', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFFE31E24), letterSpacing: 1)),
-                                    Text(Money(amountInCents: unassignedTotal, currency: 'USD').formatted, style: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.w700, color: const Color(0xFFE31E24))),
+                                    Text(Money(amountInCents: unassignedTotal, currency: 'INR').formatted, style: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.w700, color: const Color(0xFFE31E24))),
                                   ],
                                 ),
                               ],
@@ -330,7 +330,7 @@ class _TableSplitScreenState extends ConsumerState<TableSplitScreen> {
                               Text('Guest $billNum', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: isActive ? const Color(0xFF93000A) : (isDark ? Colors.white : const Color(0xFF0F172A)))),
                             ],
                           ),
-                          Text(Money(amountInCents: totalCents, currency: 'USD').formatted, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: isActive ? const Color(0xFF93000A) : (isDark ? Colors.white : const Color(0xFF0F172A)))),
+                          Text(Money(amountInCents: totalCents, currency: 'INR').formatted, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: isActive ? const Color(0xFF93000A) : (isDark ? Colors.white : const Color(0xFF0F172A)))),
                         ],
                       ),
                     ),

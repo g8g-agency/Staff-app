@@ -43,8 +43,8 @@ extension MenuProductDtoMapper on MenuProductDto {
       id: id,
       name: name,
       price: Money(amountInCents: priceInCents),
-      category: category,
-      availableModifiers: availableModifiers.map((m) => m.toDomain()).toList(),
+      category: category ?? '',
+      availableModifiers: availableModifiers?.map((m) => m.toDomain()).toList() ?? [],
     );
   }
 }
@@ -68,8 +68,8 @@ extension OrderItemDtoMapper on OrderItemDto {
       id: id,
       product: product.toDomain(),
       quantity: quantity,
-      selectedModifiers: selectedModifiers.map((m) => m.toDomain()).toList(),
-      seatNumber: seatNumber,
+      selectedModifiers: selectedModifiers?.map((m) => m.toDomain()).toList() ?? [],
+      seatNumber: seatNumber ?? 1,
       status: OrderItemStatus.values.firstWhere(
         (e) => e.name == status,
         orElse: () => OrderItemStatus.queued,
@@ -97,16 +97,16 @@ extension OrderDtoMapper on OrderDto {
   Order toDomain() {
     return Order(
       id: id,
-      tableId: tableId,
+      tableId: tableId ?? '',
       items: items.map((i) => i.toDomain()).toList(),
       status: OrderStatus.values.firstWhere(
         (e) => e.name == status,
         orElse: () => OrderStatus.draft,
       ),
       createdAt: DateTime.parse(createdAt),
-      updatedAt: DateTime.parse(updatedAt),
-      waiterName: waiterName,
-      cancelLogs: cancelLogs,
+      updatedAt: updatedAt != null ? DateTime.parse(updatedAt!) : DateTime.now(),
+      waiterName: waiterName ?? 'Unknown',
+      cancelLogs: cancelLogs ?? [],
     );
   }
 }

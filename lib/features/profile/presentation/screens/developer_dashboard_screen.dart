@@ -711,11 +711,18 @@ class _DeveloperDashboardScreenState
           if (trailing != null)
             trailing
           else if (value != null)
-            Text(
-              value,
-              style: AppTextStyles.bodyMedium.copyWith(
-                fontWeight: FontWeight.bold,
-                color: valueColor ?? textPrimary,
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 16.0),
+                child: Text(
+                  value,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: valueColor ?? textPrimary,
+                  ),
+                  textAlign: TextAlign.right,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
         ],

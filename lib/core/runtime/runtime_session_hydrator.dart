@@ -204,7 +204,7 @@ class RuntimeSessionHydrator {
         options: Options(
           headers: {
             'Authorization': 'Bearer $token',
-            'x-device-session-id': ?deviceSessionId,
+            'x-device-session-id': deviceSessionId,
           },
         ),
       );
@@ -270,7 +270,7 @@ class RuntimeSessionHydrator {
             'branchName': branch['name'],
             'organizationId': tenantId,
             'timezone': branch['timezone'] ?? 'UTC',
-            'currency': 'USD',
+            'currency': 'INR',
           };
         }
       }

@@ -58,23 +58,42 @@ void bootstrap({
       ),
     );
 
-    // Auto-login platform session if not already logged in
-    final client = Supabase.instance.client;
-    // FORCE login as super admin for development/kiosk mode
-    try {
-      await client.auth.signOut();
-      await client.auth.signInWithPassword(
-        email: 'admin@tableos.in',
-        password: 'Admin@123456',
-      );
-      talker.info('[Supabase] Platform session established.');
-    } catch (e) {
-      talker.error('[Supabase] Failed to establish platform session: $e');
-    }
-
-    // Hydrate base system preferences
+    // Hydrate base system preferences first
     final sharedPreferences = await SharedPreferences.getInstance();
     final fingerprint = await DeviceFingerprintService.initFingerprint(sharedPreferences);
+
+    // Auto-login platform session if not already logged in
+    final client = Supabase.instance.client;
+    final hasContext = sharedPreferences.getString('device_tenant_id') != null;
+
+    if (!hasContext) {
+      // FORCE login as super admin for development/kiosk mode
+      try {
+        await client.auth.signOut();
+        await client.auth.signInWithPassword(
+          email: 'admin@tableos.in',
+          password: 'Admin@123456',
+        );
+        talker.info('[Supabase] Platform session established.');
+      } catch (e) {
+        talker.error('[Supabase] Failed to establish platform session: $e');
+      }
+    } else {
+      talker.info('[Supabase] Registered device context detected. Skipping auto-login.');
+      try {
+        const secureStorage = SecureLocalStorage();
+        final refreshToken = await secureStorage.read('refresh_token');
+        if (refreshToken != null) {
+          await client.auth.setSession(refreshToken);
+          talker.info('[Supabase] Stored session recovered successfully.');
+        } else {
+          talker.warning('[Supabase] Stored context exists but no refresh token found.');
+        }
+      } catch (e) {
+        talker.error('[Supabase] Failed to recover stored session: $e');
+      }
+    }
+
 
     // Create provider container
     final container = ProviderContainer(

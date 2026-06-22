@@ -7,7 +7,8 @@ import '../../domain/entities/order.dart';
 import '../../domain/entities/order_item.dart';
 import '../../providers/orders_providers.dart';
 import '../state/active_order_notifier.dart';
-
+import '../../../tables/presentation/state/table_grid_notifier.dart';
+import '../../../staff/presentation/state/staff_presence_governance_providers.dart';
 class OrderDetailsScreen extends ConsumerWidget {
   final String orderId;
 
@@ -41,9 +42,17 @@ class OrderDetailsScreen extends ConsumerWidget {
           );
         }
 
-        return Scaffold(
-          appBar: AppBar(
-            title: Text('Table ${order.tableId} Details'),
+        return Consumer(
+          builder: (context, ref, child) {
+            final tablesAsync = ref.watch(tableGridNotifierProvider);
+            final tableNumber = tablesAsync.valueOrNull?.tables
+                    .where((t) => t.id == order.tableId)
+                    .firstOrNull?.label ??
+                order.tableId.substring(0, 4);
+
+            return Scaffold(
+              appBar: AppBar(
+                title: Text('Order #${order.id.substring(0, 4).toUpperCase()} • Table $tableNumber'),
             actions: [
               Container(
                 margin: const EdgeInsets.only(right: 16),
@@ -76,6 +85,7 @@ class OrderDetailsScreen extends ConsumerWidget {
             ),
           ),
         );
+        });
       },
     );
   }
@@ -225,10 +235,14 @@ class OrderDetailsScreen extends ConsumerWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(24.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 16,
+          runSpacing: 16,
           children: [
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 CircleAvatar(
                   backgroundColor: AppColors.primary.withValues(alpha: 0.15),
@@ -268,7 +282,9 @@ class OrderDetailsScreen extends ConsumerWidget {
   }
 
   void _showTransferWaiterDialog(BuildContext context, WidgetRef ref, Order order) {
-    final waiters = ['John Doe', 'Sarah Miller', 'Alex Wong', 'Elena Rostova', 'Michael Chang'];
+    final staffRecords = ref.read(governedOnlineStaffProvider);
+    final waiters = staffRecords.map((r) => r.name).toList();
+
     showDialog(
       context: context,
       builder: (context) {
@@ -276,7 +292,9 @@ class OrderDetailsScreen extends ConsumerWidget {
           title: const Text('Transfer Waiter Ownership'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: waiters.map((name) {
+            children: waiters.isEmpty 
+              ? [const Padding(padding: EdgeInsets.all(16.0), child: Text('No other staff currently online.'))]
+              : waiters.map((name) {
               return ListTile(
                 title: Text(name),
                 leading: const Icon(Icons.person_rounded),

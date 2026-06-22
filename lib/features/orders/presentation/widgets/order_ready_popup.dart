@@ -107,8 +107,8 @@ class _OrderReadyPopupOverlayState extends ConsumerState<OrderReadyPopupOverlay>
                               color: Colors.black87,
                             ),
                           ),
-                          Text(
-                            'Order #${widget.alert.orderId.substring(0, 8).toUpperCase()}',
+                           Text(
+                            'Order #${widget.alert.orderId.length > 8 ? widget.alert.orderId.substring(0, 8).toUpperCase() : widget.alert.orderId.toUpperCase()}',
                             style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                           ),
                         ],

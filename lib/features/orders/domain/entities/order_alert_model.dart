@@ -64,15 +64,15 @@ class IncomingOrderAlert extends Equatable {
 
     final receivedAt = DateTime.now();
     return IncomingOrderAlert(
-      alertId: '${payload['orderId']}_${receivedAt.millisecondsSinceEpoch}',
-      orderId: (payload['orderId'] as String?) ?? '',
-      orderNumber: (payload['orderNumber'] as String?) ?? 'N/A',
-      tableNumber: (payload['tableNumber'] as String?) ?? 'N/A',
-      assignedStaffId: payload['assignedStaffId'] as String?,
+      alertId: '${payload['orderId'] ?? payload['id']}_${receivedAt.millisecondsSinceEpoch}',
+      orderId: (payload['orderId'] ?? payload['id'])?.toString() ?? '',
+      orderNumber: (payload['orderNumber'] ?? payload['order_number'])?.toString() ?? 'N/A',
+      tableNumber: (payload['tableNumber'] ?? payload['table_num'] ?? payload['table_id'])?.toString() ?? 'N/A',
+      assignedStaffId: (payload['assignedStaffId'] ?? payload['assigned_waiter_id'])?.toString(),
       itemCount: (payload['itemCount'] as int?) ?? itemsList.length,
-      totalAmountMinor: (payload['totalAmountMinor'] as int?) ?? 0,
-      versionNum: (payload['versionNum'] as int?) ?? 1,
-      orderTime: DateTime.tryParse((payload['orderTime'] as String?) ?? '') ?? receivedAt,
+      totalAmountMinor: (payload['totalAmountMinor'] ?? payload['total_amount_minor'] as int?) ?? 0,
+      versionNum: (payload['versionNum'] ?? payload['version_num'] as int?) ?? 1,
+      orderTime: DateTime.tryParse((payload['orderTime'] ?? payload['created_at'] ?? '') as String) ?? receivedAt,
       receivedAt: receivedAt,
       items: itemsList,
       status: OrderAlertStatus.pending,
@@ -131,13 +131,13 @@ class OrderReadyAlert extends Equatable {
 
   factory OrderReadyAlert.fromPayload(Map<String, dynamic> payload) {
     return OrderReadyAlert(
-      alertId: '${payload['orderId']}_ready_${DateTime.now().millisecondsSinceEpoch}',
-      orderId: (payload['orderId'] as String?) ?? '',
-      orderNumber: (payload['orderNumber'] as String?) ?? 'N/A',
-      tableNumber: (payload['tableNumber'] as String?) ?? 'N/A',
-      assignedStaffId: payload['assignedStaffId'] as String?,
-      assignedStaffName: payload['assignedStaffName'] as String?,
-      readyAt: DateTime.tryParse((payload['readyAt'] as String?) ?? '') ?? DateTime.now(),
+      alertId: '${payload['orderId'] ?? payload['id']}_ready_${DateTime.now().millisecondsSinceEpoch}',
+      orderId: (payload['orderId'] ?? payload['id'])?.toString() ?? '',
+      orderNumber: (payload['orderNumber'] ?? payload['order_number'])?.toString() ?? 'N/A',
+      tableNumber: (payload['tableNumber'] ?? payload['table_num'] ?? payload['table_id'])?.toString() ?? 'N/A',
+      assignedStaffId: (payload['assignedStaffId'] ?? payload['assigned_waiter_id'])?.toString(),
+      assignedStaffName: payload['assignedStaffName']?.toString(),
+      readyAt: DateTime.tryParse((payload['readyAt'] ?? payload['ready_at'] ?? '') as String) ?? DateTime.now(),
     );
   }
 
