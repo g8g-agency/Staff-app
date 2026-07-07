@@ -137,7 +137,7 @@ class _OrderReadyPopupOverlayState extends ConsumerState<OrderReadyPopupOverlay>
                           // Navigate to order details
                           _dismiss();
                           // Adjust route depending on app structure
-                          context.push('/active-orders/${widget.alert.orderId}');
+                          context.push('/orders/${widget.alert.orderId}/details');
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green.shade600,

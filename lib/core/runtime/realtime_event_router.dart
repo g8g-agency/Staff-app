@@ -50,14 +50,32 @@ class RealtimeEventRouter {
     debugPrint('[RealtimeEventRouter] Registered event dispatch callback');
   }
 
+  /// Returns true for push-notification events that do not carry projection
+  /// state. These events must bypass epoch/branch validation because the
+  /// backend's server_epoch (a Unix timestamp) never matches the client's
+  /// UUID-based epoch, and they should reach the staff app regardless of
+  /// which branch session is active.
+  bool _isAlertEvent(RuntimeEventType type) {
+    return type == RuntimeEventType.orderAssigned ||
+        type == RuntimeEventType.orderReassigned ||
+        type == RuntimeEventType.orderAccepted ||
+        type == RuntimeEventType.orderPreparing ||
+        type == RuntimeEventType.orderReadyForPickup;
+  }
+
   /// Route a realtime event through the validation pipeline.
   Future<void> routeEvent(RuntimeEvent event) async {
     debugPrint(
       '[RealtimeEventRouter] Routing event: ${event.idempotencyKey} type=${event.type} seq=${event.sequenceNumber}',
     );
 
+    final isAlert = _isAlertEvent(event.type);
+
     // Step 1: Epoch validation
-    if (!_epochManager.isEventEpochValid(event.epochId)) {
+    // Alert events (ORDER_ASSIGNED, ORDER_REASSIGNED, ORDER_READY_FOR_PICKUP)
+    // are push notifications — they carry the backend server_epoch (Unix ms)
+    // which will never match the client UUID epoch. Skip this guard for them.
+    if (!isAlert && !_epochManager.isEventEpochValid(event.epochId)) {
       debugPrint(
         '[RealtimeEventRouter] REJECTED: Stale epoch ${event.epochId}',
       );
@@ -65,7 +83,9 @@ class RealtimeEventRouter {
     }
 
     // Step 1.5: Branch validation
-    if (!_branchIsolationResolver.isEventBranchValid(event)) {
+    // Alert events are targeted notifications — they should be delivered
+    // even if the branch resolver has not yet been activated.
+    if (!isAlert && !_branchIsolationResolver.isEventBranchValid(event)) {
       debugPrint(
         '[RealtimeEventRouter] REJECTED: Cross-branch state leakage detected. Event branch: ${event.branchId}',
       );
@@ -81,12 +101,17 @@ class RealtimeEventRouter {
     }
 
     // Step 3: Sequence validation
-    final validationResult = _sequenceValidator.validate(event);
-    if (!validationResult.isAccepted) {
-      debugPrint(
-        '[RealtimeEventRouter] REJECTED: Sequence validation failed - ${validationResult.result}',
-      );
-      return;
+    // Alert events share the global branch sequence counter but do not carry
+    // projectable state, so ordering is irrelevant. Only dedup matters.
+    // We still record the key below (step 4) to prevent duplicates.
+    if (!isAlert) {
+      final validationResult = _sequenceValidator.validate(event);
+      if (!validationResult.isAccepted) {
+        debugPrint(
+          '[RealtimeEventRouter] REJECTED: Sequence validation failed - ${validationResult.result}',
+        );
+        return;
+      }
     }
 
     // Step 4: Mark as processed

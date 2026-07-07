@@ -25,14 +25,20 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
 
     // Watch all active orders and filter for this table
     _subscription = repository.watchActiveOrders().listen((orders) {
-      Order? activeOrder;
+      Order? draftOrder;
+      Order? latestActiveOrder;
       for (final o in orders) {
         if (o.tableId == tableId) {
-          activeOrder = o;
-          break;
+          if (o.status == OrderStatus.draft) {
+            draftOrder = o;
+          } else {
+            if (latestActiveOrder == null || o.createdAt.isAfter(latestActiveOrder.createdAt)) {
+              latestActiveOrder = o;
+            }
+          }
         }
       }
-      state = AsyncData(activeOrder);
+      state = AsyncData(draftOrder ?? latestActiveOrder);
     });
 
     // Initial load from cache
@@ -62,10 +68,21 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
   }
 
   Future<void> addItem(MenuProduct product, int seatNumber, List<ModifierOption> modifiers) async {
-    final order = state.value;
-    if (order == null) return;
-
+    var order = state.value;
     final repository = ref.read(ordersRepositoryProvider);
+
+    // If order is null or already sent/delivered/etc, create a new draft order session
+    if (order == null || order.status != OrderStatus.draft) {
+      order = Order(
+        id: UuidGenerator.generateV4(),
+        tableId: tableId,
+        items: const [],
+        status: OrderStatus.draft,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      await repository.saveOrder(order);
+    }
 
     final items = List<OrderItem>.from(order.items);
     

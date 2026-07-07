@@ -76,18 +76,26 @@ class OrderAlertAudioManager {
   }
 
   /// Play a distinct sound for when an order is ready for pickup.
+  /// Falls back to order_alert.wav if order_ready.wav is not present.
   Future<void> playOrderReadySound() async {
-    try {
-      final readyPlayer = AudioPlayer();
-      await readyPlayer.play(
-        AssetSource('sounds/order_ready.wav'), // distinct asset
-        volume: _volume,
-      );
-      // Auto-dispose after it finishes
-      Future.delayed(const Duration(seconds: 3), () => readyPlayer.dispose());
-      debugPrint('[OrderAlertAudio] Playing order ready sound.');
-    } catch (e) {
-      debugPrint('[OrderAlertAudio] Error playing ready sound: $e');
+    const assets = [
+      'sounds/order_ready.wav',  // Preferred — add this file to use a distinct sound
+      'sounds/order_alert.wav',  // Fallback — always exists
+    ];
+    for (final asset in assets) {
+      try {
+        final readyPlayer = AudioPlayer();
+        await readyPlayer.play(
+          AssetSource(asset),
+          volume: _volume,
+        );
+        // Auto-dispose after it finishes
+        Future.delayed(const Duration(seconds: 3), () => readyPlayer.dispose());
+        debugPrint('[OrderAlertAudio] Playing order ready sound via $asset.');
+        return;
+      } catch (e) {
+        debugPrint('[OrderAlertAudio] Asset $asset unavailable: $e — trying next.');
+      }
     }
   }
 }

@@ -438,7 +438,7 @@ class TableDetailScreen extends ConsumerWidget {
               Expanded(
                 flex: 1,
                 child: InkWell(
-                  onTap: () => context.push('/tables/$tableId/edit'),
+                  onTap: () => context.push('/menu?tableId=$tableId'),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     height: 56,
@@ -452,29 +452,6 @@ class TableDetailScreen extends ConsumerWidget {
                         Icon(Icons.add_circle_outline_rounded, size: 20, color: isDark ? Colors.white : const Color(0xFF0F172A)),
                         const SizedBox(height: 2),
                         Text('Add Items', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white : const Color(0xFF0F172A))),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 1,
-                child: InkWell(
-                  onTap: () => context.push('/tables/$tableId/split'),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFEDEEEF),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.call_split_rounded, size: 20, color: isDark ? Colors.white : const Color(0xFF0F172A)),
-                        const SizedBox(height: 2),
-                        Text('Split Bill', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white : const Color(0xFF0F172A))),
                       ],
                     ),
                   ),

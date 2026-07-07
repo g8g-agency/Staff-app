@@ -111,10 +111,12 @@ class RealtimeSyncManager {
     _transport
         .connect()
         .then((_) {
+          if (_intentionalDisconnect) return;
           // Optimistically mark connected; the first heartbeat will confirm it.
           _onConnected();
         })
         .catchError((error) {
+          if (_intentionalDisconnect) return;
           debugPrint('[SYNC] Transport connection exception: $error');
           _scheduleReconnect();
         });

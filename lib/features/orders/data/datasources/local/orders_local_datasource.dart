@@ -49,8 +49,22 @@ class OrdersLocalDatasourceImpl implements OrdersLocalDatasource {
   @override
   Future<OrderDto?> getActiveOrderForTable(String tableId) async {
     final current = _readFromPrefs();
-    final index = current.indexWhere((o) => o.tableId == tableId && o.status != 'completed' && o.status != 'cancelled');
-    return index != -1 ? current[index] : null;
+    
+    // 1. Prefer draft status order
+    var index = current.indexWhere((o) => o.tableId == tableId && o.status == 'draft');
+    if (index != -1) return current[index];
+    
+    // 2. Otherwise prefer the most recent active order
+    final activeOrders = current.where((o) => o.tableId == tableId && o.status != 'completed' && o.status != 'cancelled').toList();
+    if (activeOrders.isEmpty) return null;
+    
+    activeOrders.sort((a, b) {
+      final aTime = DateTime.tryParse(a.createdAt) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bTime = DateTime.tryParse(b.createdAt) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bTime.compareTo(aTime); // descending (most recent first)
+    });
+    
+    return activeOrders.first;
   }
 
   @override

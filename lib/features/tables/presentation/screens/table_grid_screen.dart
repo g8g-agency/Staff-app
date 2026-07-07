@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../domain/entities/restaurant_table.dart';
 import '../state/table_grid_notifier.dart';
+import '../../../orders/presentation/state/orders_projection_provider.dart';
+import '../../../orders/domain/entities/order.dart';
 
 class TableGridScreen extends ConsumerStatefulWidget {
   const TableGridScreen({super.key});
@@ -19,6 +21,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
   @override
   Widget build(BuildContext context) {
     final stateAsync = ref.watch(tableGridNotifierProvider);
+    final activeOrders = ref.watch(ordersProjectionProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
@@ -124,12 +127,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                             
                             return LayoutBuilder(
                               builder: (context, constraints) {
-                                int crossAxisCount = 2;
-                                if (constraints.maxWidth > 1000) {
-                                  crossAxisCount = 4;
-                                } else if (constraints.maxWidth > 700) {
-                                  crossAxisCount = 3;
-                                }
+                                int crossAxisCount = 1;
 
                                 return GridView.builder(
                                   shrinkWrap: true,
@@ -138,12 +136,12 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                                     crossAxisCount: crossAxisCount,
                                     crossAxisSpacing: 16,
                                     mainAxisSpacing: 16,
-                                    childAspectRatio: 1.2,
+                                    childAspectRatio: 3.2,
                                   ),
                                   itemCount: tables.length,
                                   itemBuilder: (context, index) {
                                     final table = tables[index];
-                                    return _buildTableCard(table, isDark)
+                                    return _buildTableCard(table, isDark, activeOrders)
                                       .animate()
                                       .fadeIn(delay: (50 * index).ms)
                                       .slideY(begin: 0.1, delay: (50 * index).ms);
@@ -239,7 +237,18 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
     );
   }
 
-  Widget _buildTableCard(RestaurantTable table, bool isDark) {
+  String _getTableAmount(RestaurantTable table, List<Order> activeOrders) {
+    Order? order;
+    for (final o in activeOrders) {
+      if (o.id == table.activeOrderId || o.tableId == table.id) {
+        order = o;
+        break;
+      }
+    }
+    return order != null ? order.totalPrice.formatted : '₹0';
+  }
+
+  Widget _buildTableCard(RestaurantTable table, bool isDark, List<Order> activeOrders) {
     final status = table.status;
     
     // Map backend statuses to design states
@@ -251,11 +260,11 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
     if (status == TableStatus.available) {
       return _buildVacantCard(table, isDark);
     } else if (status == TableStatus.needsAttention) {
-      return _buildCallingCard(table, isDark);
+      return _buildCallingCard(table, isDark, activeOrders);
     } else if (status == TableStatus.reserved) {
-      return _buildBillRequestedCard(table, isDark);
+      return _buildBillRequestedCard(table, isDark, activeOrders);
     } else {
-      return _buildOccupiedCard(table, isDark);
+      return _buildOccupiedCard(table, isDark, activeOrders);
     }
   }
 
@@ -317,8 +326,8 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
     );
   }
 
-  Widget _buildOccupiedCard(RestaurantTable table, bool isDark) {
-    final amount = table.activeOrderId != null ? '₹120' : '₹0'; // Mock amounts
+  Widget _buildOccupiedCard(RestaurantTable table, bool isDark, List<Order> activeOrders) {
+    final amount = _getTableAmount(table, activeOrders);
     const time = '45m';
     
     return InkWell(
@@ -416,7 +425,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
     );
   }
 
-  Widget _buildCallingCard(RestaurantTable table, bool isDark) {
+  Widget _buildCallingCard(RestaurantTable table, bool isDark, List<Order> activeOrders) {
     return InkWell(
       onTap: () => context.push('/tables/${table.id}'),
       borderRadius: BorderRadius.circular(16),
@@ -497,7 +506,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                     ],
                   ),
                   Text(
-                    '₹45',
+                    _getTableAmount(table, activeOrders),
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -513,7 +522,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
     );
   }
 
-  Widget _buildBillRequestedCard(RestaurantTable table, bool isDark) {
+  Widget _buildBillRequestedCard(RestaurantTable table, bool isDark, List<Order> activeOrders) {
     return InkWell(
       onTap: () => context.push('/tables/${table.id}'),
       borderRadius: BorderRadius.circular(16),
@@ -593,7 +602,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                     ],
                   ),
                   Text(
-                    '₹310',
+                    _getTableAmount(table, activeOrders),
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,

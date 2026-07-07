@@ -113,10 +113,50 @@ class OrdersRepositoryImpl implements OrdersRepository {
     if (currentCached == null || currentCached.status == 'draft') {
       if (order.status == OrderStatus.sent) {
         final cartId = const Uuid().v4();
-        final sessionId = const Uuid().v4();
         
         if (isConnected && branchId != null && tenantId != null) {
           try {
+            // 1. Resolve active guest session
+            final activeSessionRes = await Supabase.instance.client
+                .from('guest_sessions')
+                .select('id')
+                .eq('table_id', order.tableId)
+                .eq('is_active', true)
+                .maybeSingle();
+            
+            String sessionId;
+            if (activeSessionRes != null) {
+              sessionId = activeSessionRes['id'] as String;
+            } else {
+              sessionId = const Uuid().v4();
+              await Supabase.instance.client.from('guest_sessions').insert({
+                'id': sessionId,
+                'tenant_id': tenantId,
+                'branch_id': branchId,
+                'table_id': order.tableId,
+                'session_token': 'token-$sessionId',
+                'is_active': true,
+                'expires_at': DateTime.now().add(const Duration(hours: 24)).toIso8601String(),
+              });
+            }
+
+            // 2. Clean up any existing open or locked carts for this session
+            final oldCartsRes = await Supabase.instance.client
+                .from('carts')
+                .select('id')
+                .eq('session_id', sessionId)
+                .or('status.eq.open,status.eq.locked');
+            
+            if (oldCartsRes != null) {
+              final oldCartList = List<Map<String, dynamic>>.from(oldCartsRes);
+              for (final c in oldCartList) {
+                final oldCartId = c['id'] as String;
+                await Supabase.instance.client.from('cart_items').delete().eq('cart_id', oldCartId);
+                await Supabase.instance.client.from('carts').delete().eq('id', oldCartId);
+              }
+            }
+
+            // 3. Insert cart
             await Supabase.instance.client.from('carts').insert({
               'id': cartId,
               'tenant_id': tenantId,

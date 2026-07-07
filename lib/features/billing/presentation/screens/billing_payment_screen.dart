@@ -19,7 +19,6 @@ class BillingPaymentScreen extends ConsumerStatefulWidget {
 }
 
 class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
-  int _splitCount = 1;
   double _tipPercentage = 0.15;
   String _paymentMethod = 'Card';
 
@@ -68,8 +67,6 @@ class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
           final tip = Money(amountInCents: tipCents);
           final total = Money(amountInCents: grandTotalCents);
 
-          final splitShare = Money(amountInCents: (grandTotalCents / _splitCount).round());
-
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -104,31 +101,6 @@ class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-
-                // Split Options
-                Text('Billing Divisions', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8.0,
-                  runSpacing: 8.0,
-                  children: [
-                    ...[1, 2, 3, 4].map((count) {
-                      final isSelected = _splitCount == count;
-                      return ChoiceChip(
-                          selected: isSelected,
-                          label: Text(count == 1 ? 'Single Pay' : 'Split / $count'),
-                          onSelected: (selected) {
-                            if (selected) {
-                              setState(() {
-                                _splitCount = count;
-                              });
-                            }
-                          },
-                        );
-                    }),
-                  ],
                 ),
                 const SizedBox(height: 16),
 
@@ -198,10 +170,6 @@ class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
                       _buildSummaryRow('Tip', tip.formatted, theme),
                       const Divider(),
                       _buildSummaryRow('Total Balance', total.formatted, theme, isBold: true, isPrimary: true),
-                      if (_splitCount > 1) ...[
-                        const SizedBox(height: 8),
-                        _buildSummaryRow('Per Person Share', splitShare.formatted, theme, isBold: true),
-                      ],
                     ],
                   ),
                 ),

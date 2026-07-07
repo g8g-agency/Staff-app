@@ -41,7 +41,10 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
 
       if (response.statusCode == 200) {
         final list = response.data['data']['orders'] as List;
-        return list.map((json) => OrderDto.fromJson(json as Map<String, dynamic>)).toList();
+        return list.map((json) {
+          final mapped = _mapBackendOrder(json as Map<String, dynamic>);
+          return OrderDto.fromJson(mapped);
+        }).toList();
       }
     } catch (e) {
       debugPrint('[OrdersRemoteDatasource] Failed to fetch active orders: $e');
@@ -104,13 +107,49 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
       );
 
       if (response.statusCode == 200) {
-        final data = response.data['data']['order'];
-        return OrderDto.fromJson(data as Map<String, dynamic>);
+        final data = response.data['data']['order'] as Map<String, dynamic>;
+        final mapped = _mapBackendOrder(data);
+        return OrderDto.fromJson(mapped);
       }
     } catch (e) {
       debugPrint('[OrdersRemoteDatasource] Failed to transition order status: $e');
       rethrow;
     }
     throw Exception('Failed to transition order status');
+  }
+  Map<String, dynamic> _mapBackendOrder(Map<String, dynamic> payload) {
+    if (payload.containsKey('tableId') && payload.containsKey('createdAt')) {
+      return payload; // Already mapped (e.g. from mock)
+    }
+
+    final items = (payload['items'] as List? ?? []).map((item) {
+      final i = item as Map<String, dynamic>;
+      final priceInCents = ((i['unit_price'] as num? ?? 0.0) * 100).round();
+      return {
+        'id': i['id'],
+        'product': {
+          'id': i['menu_item_id'] ?? i['productId'] ?? 'unknown',
+          'name': i['menu_item_name'] ?? 'Product',
+          'priceInCents': priceInCents,
+          'category': 'Mains',
+          'availableModifiers': [],
+        },
+        'quantity': i['quantity'] ?? i['qty'] ?? 1,
+        'selectedModifiers': [],
+        'seatNumber': 1,
+        'status': i['status'] ?? 'confirmed',
+      };
+    }).toList();
+
+    return {
+      'id': payload['id'],
+      'tableId': payload['table_id'] ?? '',
+      'items': items,
+      'status': payload['status'] ?? 'pending',
+      'createdAt': payload['created_at'] ?? DateTime.now().toIso8601String(),
+      'updatedAt': payload['updated_at'] ?? DateTime.now().toIso8601String(),
+      'waiterName': payload['staff_name'] ?? payload['waiterName'] ?? 'John Doe',
+      'cancelLogs': [],
+    };
   }
 }

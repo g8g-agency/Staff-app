@@ -33,6 +33,8 @@ import 'projection_rebuild_engine.dart';
 import '../network/realtime_sync_manager.dart';
 import '../../features/auth/presentation/state/auth_notifier.dart';
 import '../../features/orders/providers/orders_providers.dart';
+import '../../features/orders/providers/orders_realtime_provider.dart';
+import '../../features/orders/presentation/state/orders_projection_provider.dart';
 import '../../features/tables/providers/tables_providers.dart';
 import '../../features/waiter_calls/presentation/state/waiter_calls_providers.dart';
 // KDS runtime
@@ -226,12 +228,34 @@ class OperationalRuntimeBridge {
         await _store.applyValidatedEvent(event);
         break;
 
-      // ── Order Alert Domain ────────────────────────────────────────────────
+      // ── Kitchen Domain ────────────────────────────────────────────────────
+      case RuntimeEventType.kitchenItemUpdate:
+      case RuntimeEventType.kitchenQueueUpdate:
+        _ref.read(kitchenRuntimeCoordinatorProvider).applyEvent(
+          idempotencyKey: event.idempotencyKey,
+          sequenceNumber: event.sequenceNumber,
+          branchId: event.branchId,
+          epochId: event.epochId,
+          payload: event.payload,
+          isItemUpdate: event.type == RuntimeEventType.kitchenItemUpdate,
+        );
+        break;
+
+      // ── Order Placement Events (update projection, no alert sound) ──────────
       case RuntimeEventType.orderAssigned:
       case RuntimeEventType.orderReassigned:
+        // Route to store so order list refreshes, but do NOT trigger an alert sound
+        await _store.applyValidatedEvent(event);
+        break;
+
+      // ── KDS-triggered Order Alert Domain ─────────────────────────────────────
+      // These fire only when KDS accepts/prepares/marks-ready an order
+      case RuntimeEventType.orderAccepted:
+      case RuntimeEventType.orderPreparing:
       case RuntimeEventType.orderReadyForPickup:
         await _handleOrderAlertEvent(event);
         break;
+
 
       // ── Operational Alert Domain ──────────────────────────────────────────
       case RuntimeEventType.operationalAlertCreated:
@@ -259,7 +283,10 @@ class OperationalRuntimeBridge {
 
   Future<void> _handleOrderAlertEvent(RuntimeEvent event) async {
     final payload = event.payload;
-    final assignedStaffId = payload['assignedStaffId'] as String?;
+    final alertService = _ref.read(orderAlertServiceProvider);
+    // Backend sends 'assignedStaffId' for ORDER_READY_FOR_PICKUP/ORDER_PREPARING
+    // and 'acceptedByStaffId' for ORDER_ACCEPTED — check both.
+    final assignedStaffId = (payload['assignedStaffId'] ?? payload['acceptedByStaffId']) as String?;
     final currentStaffId = _ref.read(authNotifierProvider).loggedInStaff?.id;
 
     // Only show alert if this event targets ME, or has no target (broadcast)
@@ -279,11 +306,14 @@ class OperationalRuntimeBridge {
     );
 
     if (event.type == RuntimeEventType.orderReadyForPickup) {
+      alertService.playOrderReadyAlert();
       _ref.read(orderAlertNotifierProvider.notifier).enqueueReadyAlert(payload);
     } else {
+      alertService.playNewOrderAlert();
       _ref.read(orderAlertNotifierProvider.notifier).enqueueAlert(payload);
     }
   }
+
 
 
   // ━━━━━━━━━━━━━━━━━━━━━━ EVENT TYPE MAPPING ━━━━━━━━━━━━━━━━━━━━━━
@@ -330,7 +360,12 @@ class OperationalRuntimeBridge {
         return RuntimeEventType.orderAssigned;
       case 'order_reassigned':
         return RuntimeEventType.orderReassigned;
+      case 'ORDER_ACCEPTED':
+        return RuntimeEventType.orderAccepted;
+      case 'ORDER_PREPARING':
+        return RuntimeEventType.orderPreparing;
       case 'ORDER_READY_FOR_PICKUP':
+      case 'order_ready_for_pickup':
         return RuntimeEventType.orderReadyForPickup;
       default:
         return RuntimeEventType.unknown;

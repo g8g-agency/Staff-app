@@ -305,11 +305,11 @@ void main() {
       final burger = MenuProduct(
         id: 'p-1',
         name: 'Burger',
-        price: Money(amountInCents: 1000),
+        price: const Money(amountInCents: 1000),
         category: 'Mains',
         availableModifiers: [
-          ModifierOption(id: 'm-1', name: 'Cheese', price: Money(amountInCents: 150)),
-          ModifierOption(id: 'm-2', name: 'Bacon', price: Money(amountInCents: 200)),
+          const ModifierOption(id: 'm-1', name: 'Cheese', price: Money(amountInCents: 150)),
+          const ModifierOption(id: 'm-2', name: 'Bacon', price: Money(amountInCents: 200)),
         ],
       );
 
@@ -318,7 +318,7 @@ void main() {
         product: burger,
         quantity: 2,
         selectedModifiers: [
-          ModifierOption(id: 'm-1', name: 'Cheese', price: Money(amountInCents: 150)),
+          const ModifierOption(id: 'm-1', name: 'Cheese', price: Money(amountInCents: 150)),
         ],
         seatNumber: 1,
         status: OrderItemStatus.queued,
@@ -326,14 +326,14 @@ void main() {
 
       // (1000 + 150) * 2 = 2300 cents
       expect(item.totalPrice.amountInCents, 2300);
-      expect(item.totalPrice.formatted, '\$23.00');
+      expect(item.totalPrice.formatted, '₹23.00');
     });
 
     test('should calculate correct order grand total', () {
       final burger = MenuProduct(
         id: 'p-1',
         name: 'Burger',
-        price: Money(amountInCents: 1000),
+        price: const Money(amountInCents: 1000),
         category: 'Mains',
         availableModifiers: [],
       );
@@ -341,7 +341,7 @@ void main() {
       final soda = MenuProduct(
         id: 'p-2',
         name: 'Soda',
-        price: Money(amountInCents: 300),
+        price: const Money(amountInCents: 300),
         category: 'Drinks',
         availableModifiers: [],
       );
@@ -374,7 +374,7 @@ void main() {
 
       // Burger (1000 * 1) + Soda (300 * 2) = 1600 cents
       expect(order.totalPrice.amountInCents, 1600);
-      expect(order.totalPrice.formatted, '\$16.00');
+      expect(order.totalPrice.formatted, '₹16.00');
     });
   });
 

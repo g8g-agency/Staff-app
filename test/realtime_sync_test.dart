@@ -16,7 +16,26 @@ import 'package:orderlyy_app/core/config/app_config.dart';
 import 'package:orderlyy_app/core/config/environment.dart';
 import 'package:orderlyy_app/core/runtime/operational_runtime_bridge.dart';
 
+import 'package:hive/hive.dart';
+import 'package:orderlyy_app/core/runtime/realtime_transport_provider.dart';
+import 'package:orderlyy_app/core/device/device_fingerprint_provider.dart';
+
 // Mock classes for testing
+class MockHiveBox implements Box<String> {
+  final Map<String, String> _storage = {};
+
+  @override
+  String? get(key, {String? defaultValue}) => _storage[key.toString()] ?? defaultValue;
+
+  @override
+  Future<void> put(key, String value) async {
+    _storage[key.toString()] = value;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 class MockTablesRemoteDatasource implements TablesRemoteDatasource {
   List<TableDto> tables = [];
   bool getTablesCalled = false;
@@ -105,6 +124,9 @@ void main() {
           tablesRemoteDatasourceProvider.overrideWithValue(mockRemote),
           networkInfoProvider.overrideWithValue(mockNetwork),
           offlineQueueManagerProvider.overrideWithValue(mockOfflineQueue),
+          repositoryModeProvider.overrideWithValue(RepositoryMode.mock),
+          apiCacheBoxProvider.overrideWithValue(MockHiveBox()),
+          deviceFingerprintProvider.overrideWithValue('mock_device_fingerprint'),
         ],
       );
 

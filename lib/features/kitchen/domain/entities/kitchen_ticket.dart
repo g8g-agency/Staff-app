@@ -216,8 +216,21 @@ class KitchenTicket extends Equatable {
   /// Derive the authoritative ticket status from item states.
   /// This is the ONLY way ticket status is computed — never set directly.
   KitchenTicketStatus deriveStatus() {
+    // Preserve terminal states explicitly marked by backend or user
+    if (status == KitchenTicketStatus.served || status == KitchenTicketStatus.cancelled) {
+      return status;
+    }
+    
     if (activeItems.isEmpty) return KitchenTicketStatus.cancelled;
-    if (allItemsReady) return KitchenTicketStatus.ready;
+    
+    if (allItemsReady) {
+      // If ALL items are literally 'served', then the ticket is served.
+      if (activeItems.every((i) => i.status == KitchenItemStatus.served)) {
+        return KitchenTicketStatus.served;
+      }
+      return KitchenTicketStatus.ready;
+    }
+    
     if (anyItemPreparing) {
       final someReady =
           activeItems.any((i) => i.status == KitchenItemStatus.ready);
@@ -265,13 +278,15 @@ class KitchenTicket extends Equatable {
         .map((i) => KitchenItem.fromJson(i as Map<String, dynamic>, sequence))
         .toList();
 
-    return KitchenTicket(
+    final parsedStatus = _parseStatus(json['status'] as String? ?? 'queued');
+    
+    final ticket = KitchenTicket(
       ticketId: json['ticketId'] as String? ?? json['orderId'] as String,
       orderId: json['orderId'] as String,
       tableId: json['tableId'] as String,
       tableLabel: json['tableLabel'] as String?,
       branchId: json['branchId'] as String,
-      status: _parseStatus(json['status'] as String? ?? 'queued'),
+      status: parsedStatus,
       items: items,
       projectionEpochId: epochId,
       projectionSequence: sequence,
@@ -284,6 +299,9 @@ class KitchenTicket extends Equatable {
           : null,
       isReplayRecovered: json['isReplayRecovered'] as bool? ?? false,
     );
+    
+    // Always derive the authoritative status locally based on items
+    return ticket.copyWith(status: ticket.deriveStatus());
   }
 
   static KitchenTicketStatus _parseStatus(String raw) {

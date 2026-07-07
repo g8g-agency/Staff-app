@@ -37,6 +37,8 @@ enum RuntimeEventType {
   // Order alerts (P3-STAFF-01)
   orderAssigned,
   orderReassigned,
+  orderAccepted,
+  orderPreparing,
   orderReadyForPickup,
   // Session / epoch
   authSessionInvalidated,
@@ -99,7 +101,10 @@ class RuntimeEvent extends Equatable {
       case 'floor_analytics_delta':      return RuntimeEventType.floorAnalyticsDelta;
       case 'order_assigned':              return RuntimeEventType.orderAssigned;
       case 'order_reassigned':            return RuntimeEventType.orderReassigned;
+      case 'ORDER_ACCEPTED':              return RuntimeEventType.orderAccepted;
+      case 'ORDER_PREPARING':             return RuntimeEventType.orderPreparing;
       case 'ORDER_READY_FOR_PICKUP':      return RuntimeEventType.orderReadyForPickup;
+      case 'order_ready_for_pickup':      return RuntimeEventType.orderReadyForPickup;
       case 'auth_session_invalidated':   return RuntimeEventType.authSessionInvalidated;
       case 'epoch_invalidated':          return RuntimeEventType.epochInvalidated;
       default:                           return RuntimeEventType.unknown;
