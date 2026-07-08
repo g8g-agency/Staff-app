@@ -62,16 +62,33 @@ class IncomingOrderAlert extends Equatable {
         .map((i) => AlertOrderItem.fromMap(i as Map<String, dynamic>))
         .toList();
 
+    // Safe int extractor — JSON over WebSocket may deliver integers as num/double
+    int? _toInt(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      if (v is num) return v.round();
+      if (v is String) return int.tryParse(v);
+      return null;
+    }
+
+    // Resolve total in minor units (paise). Backend sends totalAmountMinor as int.
+    final resolvedTotalMinor =
+        _toInt(payload['totalAmountMinor'] ?? payload['total_amount_minor']) ??
+        (() {
+          final rawPrice = payload['total_price'];
+          return rawPrice is num ? (rawPrice * 100).round() : 0;
+        })();
+
     final receivedAt = DateTime.now();
     return IncomingOrderAlert(
       alertId: '${payload['orderId'] ?? payload['id']}_${receivedAt.millisecondsSinceEpoch}',
       orderId: (payload['orderId'] ?? payload['id'])?.toString() ?? '',
       orderNumber: (payload['orderNumber'] ?? payload['order_number'])?.toString() ?? 'N/A',
-      tableNumber: (payload['tableNumber'] ?? payload['table_num'] ?? payload['table_id'])?.toString() ?? 'N/A',
-      assignedStaffId: (payload['assignedStaffId'] ?? payload['assigned_waiter_id'])?.toString(),
-      itemCount: (payload['itemCount'] as int?) ?? itemsList.length,
-      totalAmountMinor: (payload['totalAmountMinor'] ?? payload['total_amount_minor'] as int?) ?? 0,
-      versionNum: (payload['versionNum'] ?? payload['version_num'] as int?) ?? 1,
+      tableNumber: (payload['tableLabel'] ?? payload['tableNumber'] ?? payload['table_num'])?.toString() ?? 'N/A',
+      assignedStaffId: (payload['assignedStaffId'] ?? payload['assigned_waiter_id'] ?? payload['assigned_staff_id'])?.toString(),
+      itemCount: _toInt(payload['itemCount']) ?? itemsList.length,
+      totalAmountMinor: resolvedTotalMinor,
+      versionNum: _toInt(payload['versionNum'] ?? payload['version_num']) ?? 1,
       orderTime: DateTime.tryParse((payload['orderTime'] ?? payload['created_at'] ?? '') as String) ?? receivedAt,
       receivedAt: receivedAt,
       items: itemsList,
@@ -80,19 +97,25 @@ class IncomingOrderAlert extends Equatable {
     );
   }
 
-  IncomingOrderAlert copyWith({OrderAlertStatus? status}) {
+  IncomingOrderAlert copyWith({
+    OrderAlertStatus? status,
+    String? tableNumber,
+    int? itemCount,
+    int? totalAmountMinor,
+    List<AlertOrderItem>? items,
+  }) {
     return IncomingOrderAlert(
       alertId: alertId,
       orderId: orderId,
       orderNumber: orderNumber,
-      tableNumber: tableNumber,
+      tableNumber: tableNumber ?? this.tableNumber,
       assignedStaffId: assignedStaffId,
-      itemCount: itemCount,
-      totalAmountMinor: totalAmountMinor,
+      itemCount: itemCount ?? this.itemCount,
+      totalAmountMinor: totalAmountMinor ?? this.totalAmountMinor,
       versionNum: versionNum,
       orderTime: orderTime,
       receivedAt: receivedAt,
-      items: items,
+      items: items ?? this.items,
       status: status ?? this.status,
       isReassignment: isReassignment,
     );

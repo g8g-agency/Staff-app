@@ -120,6 +120,31 @@ class OrderAlertNotifier extends StateNotifier<OrderAlertState> {
     _startTimeoutTimer(alert);
   }
 
+  /// Enrich an existing queued alert with data resolved from the full order fetch.
+  /// Called after fetchAndUpdate() completes to fill in table label, item count, total, and items.
+  void enrichAlert({
+    required String orderId,
+    required String tableLabel,
+    required int itemCount,
+    required int totalAmountMinor,
+    required List<Map<String, dynamic>> items,
+  }) {
+    final index = state.queue.indexWhere((a) => a.orderId == orderId);
+    if (index == -1) return;
+
+    final enriched = state.queue[index].copyWith(
+      tableNumber: tableLabel,
+      itemCount: itemCount,
+      totalAmountMinor: totalAmountMinor,
+      items: items.map((i) => AlertOrderItem.fromMap(i)).toList(),
+    );
+
+    final newQueue = [...state.queue];
+    newQueue[index] = enriched;
+    state = state.copyWith(queue: newQueue);
+    debugPrint('[OrderAlert] Enriched alert for order $orderId — table: $tableLabel, items: $itemCount, total: $totalAmountMinor');
+  }
+
   void clearOverflow() {
     state = state.copyWith(hasOverflow: false, overflowCount: 0);
   }

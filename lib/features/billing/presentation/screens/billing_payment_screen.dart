@@ -198,9 +198,7 @@ class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
                       }
                     },
                     child: Text(
-                      _splitCount > 1
-                          ? 'Collect Payment (${splitShare.formatted} each)'
-                          : 'Process Payment (${total.formatted})',
+                      'Process Payment (${total.formatted})',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),

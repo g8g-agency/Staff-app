@@ -8,6 +8,7 @@ import '../presentation/state/order_alert_notifier.dart';
 import '../services/orders_realtime_service.dart';
 import 'orders_providers.dart';
 import '../presentation/state/orders_projection_provider.dart';
+import '../../tables/providers/tables_providers.dart';
 
 final orderAlertServiceProvider = Provider<OrderAlertService>((ref) {
   final service = OrderAlertService();
@@ -34,6 +35,45 @@ final ordersRealtimeProvider = Provider.autoDispose<void>((ref) {
     final repo = ref.read(ordersRepositoryProvider);
     final orders = await repo.fetchActiveOrders();
     ref.read(ordersProjectionProvider.notifier).updateProjection(orders);
+    return;
+  }
+
+  /// After the full order list is fetched, look up the order by ID and
+  /// enrich the alert with the real table label, item count, and total.
+  Future<void> enrichAlertFromProjection(String orderId) async {
+    await fetchAndUpdate();
+
+    // Resolve table label from tables repository
+    String tableLabel = 'N/A';
+    try {
+      final tablesRepo = ref.read(tablesRepositoryProvider);
+      final tables = await tablesRepo.getTables();
+      // Look at the projection for the order's tableId
+      final projection = ref.read(ordersProjectionProvider);
+      final order = projection.where((o) => o.id == orderId).firstOrNull;
+      if (order != null) {
+        final matchingTable = tables.where((t) => t.id == order.tableId).firstOrNull;
+        tableLabel = matchingTable?.label ?? order.tableId;
+
+        // Build items list for the alert
+        final alertItems = order.items
+            .map((item) => <String, dynamic>{
+                  'name': item.product.name,
+                  'quantity': item.quantity,
+                })
+            .toList();
+
+        orderAlertNotifier.enrichAlert(
+          orderId: orderId,
+          tableLabel: tableLabel,
+          itemCount: order.items.length,
+          totalAmountMinor: order.totalPrice.amountInCents,
+          items: alertItems,
+        );
+      }
+    } catch (e) {
+      debugPrint('[ordersRealtimeProvider] Failed to enrich alert: $e');
+    }
   }
 
   service.onEvent.listen((event) {
@@ -41,7 +81,13 @@ final ordersRealtimeProvider = Provider.autoDispose<void>((ref) {
     if (event.type == RealtimeOrderEventType.insert) {
       alertService.playNewOrderAlert();
       orderAlertNotifier.enqueueAlert(event.payload);
-      fetchAndUpdate();
+      // Fetch full order data and enrich the alert with table label, items, and total
+      final orderId = (event.payload['id'] ?? event.payload['orderId'])?.toString() ?? '';
+      if (orderId.isNotEmpty) {
+        enrichAlertFromProjection(orderId);
+      } else {
+        fetchAndUpdate();
+      }
     } else if (event.type == RealtimeOrderEventType.update) {
       final status = event.payload['status'];
       if (status == 'ready' || status == 'READY') {
