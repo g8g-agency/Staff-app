@@ -190,7 +190,7 @@ class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Payment processed via $_paymentMethod! Table resetting to cleaning state.'),
+                            content: Text('Payment processed via $_paymentMethod! Table resetting to vacant state.'),
                             backgroundColor: AppColors.success,
                           ),
                         );
