@@ -65,7 +65,8 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
       if (response.statusCode == 200) {
         final data = response.data['data']['order'];
         if (data != null) {
-          return OrderDto.fromJson(data as Map<String, dynamic>);
+          final mapped = _mapBackendOrder(data as Map<String, dynamic>);
+          return OrderDto.fromJson(mapped);
         }
       }
     } catch (e) {
@@ -87,7 +88,8 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = response.data['data']['order'];
-        return OrderDto.fromJson(data as Map<String, dynamic>);
+        final mapped = _mapBackendOrder(data as Map<String, dynamic>);
+        return OrderDto.fromJson(mapped);
       }
     } catch (e) {
       debugPrint('[OrdersRemoteDatasource] Failed to checkout cart: $e');
@@ -124,12 +126,13 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
 
     final items = (payload['items'] as List? ?? []).map((item) {
       final i = item as Map<String, dynamic>;
-      final priceInCents = ((i['unit_price'] as num? ?? 0.0) * 100).round();
+      final rawPrice = double.tryParse(i['unit_price']?.toString() ?? '') ?? 0.0;
+      final priceInCents = (rawPrice * 100).round();
       return {
         'id': i['id'],
         'product': {
           'id': i['menu_item_id'] ?? i['productId'] ?? 'unknown',
-          'name': i['menu_item_name'] ?? 'Product',
+          'name': i['name'] ?? i['menu_item_name'] ?? 'Product',
           'priceInCents': priceInCents,
           'category': 'Mains',
           'availableModifiers': [],

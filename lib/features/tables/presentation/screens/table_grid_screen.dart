@@ -7,6 +7,8 @@ import '../../domain/entities/restaurant_table.dart';
 import '../state/table_grid_notifier.dart';
 import '../../../orders/presentation/state/orders_projection_provider.dart';
 import '../../../orders/domain/entities/order.dart';
+import '../../../orders/providers/orders_realtime_provider.dart';
+import '../../../../shared/models/money.dart';
 
 class TableGridScreen extends ConsumerStatefulWidget {
   const TableGridScreen({super.key});
@@ -20,6 +22,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(ordersRealtimeProvider);
     final stateAsync = ref.watch(tableGridNotifierProvider);
     final activeOrders = ref.watch(ordersProjectionProvider);
     final theme = Theme.of(context);
@@ -238,14 +241,21 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
   }
 
   String _getTableAmount(RestaurantTable table, List<Order> activeOrders) {
-    Order? order;
+    debugPrint('[TableGridScreen] _getTableAmount table=${table.label} activeOrdersCount=${activeOrders.length}');
     for (final o in activeOrders) {
-      if (o.id == table.activeOrderId || o.tableId == table.id) {
-        order = o;
-        break;
+      if (o.tableId == table.id) {
+        debugPrint('  -> Order: num=${o.id} status=${o.status} price=${o.totalPrice.formatted}');
       }
     }
-    return order != null ? order.totalPrice.formatted : '₹0';
+    var totalCents = 0;
+    bool hasOrders = false;
+    for (final o in activeOrders) {
+      if (o.tableId == table.id && o.status != OrderStatus.completed && o.status != OrderStatus.cancelled) {
+        totalCents += o.totalPrice.amountInCents;
+        hasOrders = true;
+      }
+    }
+    return hasOrders ? Money(amountInCents: totalCents).formatted : '₹0.00';
   }
 
   Widget _buildTableCard(RestaurantTable table, bool isDark, List<Order> activeOrders) {

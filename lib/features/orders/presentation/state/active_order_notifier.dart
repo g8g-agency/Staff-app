@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../core/utils/uuid.dart';
 import '../../../tables/domain/entities/restaurant_table.dart';
 import '../../../tables/providers/tables_providers.dart';
+import '../../../tables/presentation/state/table_grid_notifier.dart';
 import '../../domain/entities/menu_product.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/entities/order_item.dart';
@@ -25,24 +26,69 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
 
     // Watch all active orders and filter for this table
     _subscription = repository.watchActiveOrders().listen((orders) {
-      Order? draftOrder;
-      Order? latestActiveOrder;
-      for (final o in orders) {
-        if (o.tableId == tableId) {
-          if (o.status == OrderStatus.draft) {
-            draftOrder = o;
-          } else {
-            if (latestActiveOrder == null || o.createdAt.isAfter(latestActiveOrder.createdAt)) {
-              latestActiveOrder = o;
-            }
-          }
-        }
+      final tableOrders = orders.where((o) => o.tableId == tableId).toList();
+      print('[ActiveOrderNotifier] watchActiveOrders: tableId=$tableId count=${tableOrders.length}');
+      for (final o in tableOrders) {
+        print('  -> Order num=${o.id} status=${o.status} itemsCount=${o.items.length} totalPrice=${o.totalPrice.formatted}');
       }
-      state = AsyncData(draftOrder ?? latestActiveOrder);
+      if (tableOrders.isEmpty) {
+        state = const AsyncData(null);
+        return;
+      }
+
+      final draftOrder = tableOrders.firstWhere(
+        (o) => o.status == OrderStatus.draft,
+        orElse: () => tableOrders.first,
+      );
+
+      final allItems = <OrderItem>[];
+      for (final o in tableOrders) {
+        allItems.addAll(o.items);
+      }
+
+      final aggregated = Order(
+        id: draftOrder.id,
+        tableId: tableId,
+        items: allItems,
+        status: tableOrders.any((o) => o.status == OrderStatus.draft) ? OrderStatus.draft : OrderStatus.sent,
+        createdAt: draftOrder.createdAt,
+        updatedAt: DateTime.now(),
+        waiterName: draftOrder.waiterName,
+        cancelLogs: tableOrders.expand((o) => o.cancelLogs).toList(),
+      );
+
+      state = AsyncData(aggregated);
     });
 
     // Initial load from cache
-    return repository.getActiveOrderForTable(tableId);
+    final initialOrders = await repository.fetchActiveOrders();
+    final tableOrders = initialOrders.where((o) => o.tableId == tableId).toList();
+    print('[ActiveOrderNotifier] Initial load: tableId=$tableId count=${tableOrders.length}');
+    for (final o in tableOrders) {
+      print('  -> Order num=${o.id} status=${o.status} itemsCount=${o.items.length} totalPrice=${o.totalPrice.formatted}');
+    }
+    if (tableOrders.isEmpty) return null;
+
+    final draftOrder = tableOrders.firstWhere(
+      (o) => o.status == OrderStatus.draft,
+      orElse: () => tableOrders.first,
+    );
+
+    final allItems = <OrderItem>[];
+    for (final o in tableOrders) {
+      allItems.addAll(o.items);
+    }
+
+    return Order(
+      id: draftOrder.id,
+      tableId: tableId,
+      items: allItems,
+      status: tableOrders.any((o) => o.status == OrderStatus.draft) ? OrderStatus.draft : OrderStatus.sent,
+      createdAt: draftOrder.createdAt,
+      updatedAt: DateTime.now(),
+      waiterName: draftOrder.waiterName,
+      cancelLogs: tableOrders.expand((o) => o.cancelLogs).toList(),
+    );
   }
 
   Future<void> createOrder() async {
@@ -146,42 +192,46 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
   }
 
   Future<void> sendToKitchen() async {
-    final order = state.value;
-    if (order == null) return;
-
     final repository = ref.read(ordersRepositoryProvider);
 
+    final allOrders = await repository.fetchActiveOrders();
+    final draftOrderIndex = allOrders.indexWhere((o) => o.tableId == tableId && o.status == OrderStatus.draft);
+    if (draftOrderIndex == -1) return;
+    
+    final draftOrder = allOrders[draftOrderIndex];
+
     // Transition all items status to queued (draft items now active)
-    final items = order.items.map((item) {
+    final items = draftOrder.items.map((item) {
       return item.copyWith(status: OrderItemStatus.queued);
     }).toList();
 
-    final updated = order.copyWith(
+    final updated = draftOrder.copyWith(
       items: items,
       status: OrderStatus.sent,
       updatedAt: DateTime.now(),
     );
 
     await repository.saveOrder(updated);
-    state = AsyncData(updated);
   }
 
   Future<void> payAndComplete() async {
-    final order = state.value;
-    if (order == null) return;
-
     final repository = ref.read(ordersRepositoryProvider);
     final updateTableStatus = ref.read(updateTableStatusUseCaseProvider);
 
-    final updated = order.copyWith(
-      status: OrderStatus.completed,
-      updatedAt: DateTime.now(),
-    );
+    final allOrders = await repository.fetchActiveOrders();
+    final tableOrders = allOrders.where((o) => o.tableId == tableId).toList();
 
-    await repository.saveOrder(updated);
+    for (final o in tableOrders) {
+      final updated = o.copyWith(
+        status: OrderStatus.completed,
+        updatedAt: DateTime.now(),
+      );
+      await repository.saveOrder(updated);
+    }
     
-    // Update table status to cleaning, clear active order
-    await updateTableStatus(tableId, TableStatus.cleaning, orderId: null);
+    // Update table status to available (vacant), clear active order
+    await updateTableStatus(tableId, TableStatus.available, orderId: null);
+    ref.invalidate(tableGridNotifierProvider);
     
     state = const AsyncData(null);
   }
