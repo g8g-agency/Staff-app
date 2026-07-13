@@ -25,6 +25,7 @@ class AppColors {
   static const Color error = Color(0xFFE71D36); // Crimson red
   static const Color warning = Color(0xFFFF9F1C); // Amber warning
   static const Color info = Color(0xFF011627); // Dark navy
+  static const Color statusReady = Color(0xFF2EC4B6); // Status Ready (Teal)
 
   // Neutral borders
   static const Color darkBorder = Color(0xFF2C2C35);
