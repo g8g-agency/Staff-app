@@ -101,7 +101,14 @@ class OrdersRepositoryImpl implements OrdersRepository {
   Future<Order> saveOrder(Order order) async {
     final currentCached = await local.getCachedOrderById(order.id);
     final dto = order.toDto();
-    await local.cacheOrder(dto);
+    
+    if (order.status != OrderStatus.completed && order.status != OrderStatus.cancelled && order.status != OrderStatus.delivered) {
+      await local.cacheOrder(dto);
+    } else {
+      final current = await local.getCachedOrders();
+      final filtered = current.where((d) => d.id != order.id).toList();
+      await local.cacheOrders(filtered);
+    }
     
     final authState = ref.read(authNotifierProvider);
     final branchId = authState.selectedBranch?.id;
@@ -298,23 +305,50 @@ class OrdersRepositoryImpl implements OrdersRepository {
     return local.watchCachedOrders().map((list) {
       return list
           .map((dto) => dto.toDomain())
-          .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled)
+          .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled && o.status != OrderStatus.delivered)
           .toList();
     });
   }
 
   @override
   Stream<Order?> watchOrderById(String orderId) {
+    // Proactively fetch and cache the order if it's not present locally
+    _preFetchOrderToCache(orderId);
+    
     return local.watchCachedOrders().map((list) {
       final index = list.indexWhere((dto) => dto.id == orderId);
       return index != -1 ? list[index].toDomain() : null;
     });
   }
 
+  Future<void> _preFetchOrderToCache(String orderId) async {
+    try {
+      final cached = await local.getCachedOrderById(orderId);
+      if (cached != null) return; // Already cached
+      
+      final networkInfo = ref.read(networkInfoProvider);
+      final isConnected = await networkInfo.isConnected;
+      if (isConnected) {
+        final remoteOrder = await remote.getOrderById(orderId);
+        if (remoteOrder != null) {
+          await local.cacheOrder(remoteOrder);
+        }
+      }
+    } catch (e) {
+      debugPrint('[OrdersRepositoryImpl] Pre-fetch order details failed: $e');
+    }
+  }
+
   @override
   Future<void> syncOrders(List<Order> orders) async {
-    final dtos = orders.map((o) => o.toDto()).toList();
-    await local.cacheOrders(dtos);
+    // Preserve local draft orders not included in the server sync
+    final currentCache = await local.getCachedOrders();
+    final localDrafts = currentCache.where((dto) => dto.status == 'draft').toList();
+    final serverIds = orders.map((o) => o.id).toSet();
+    final preservedDrafts = localDrafts.where((d) => !serverIds.contains(d.id)).toList();
+    
+    final serverDtos = orders.map((o) => o.toDto()).toList();
+    await local.cacheOrders([...serverDtos, ...preservedDrafts]);
   }
 
   @override
@@ -327,8 +361,21 @@ class OrdersRepositoryImpl implements OrdersRepository {
     if (await networkInfo.isConnected) {
       try {
         final remoteItems = await remote.fetchActiveOrders(branchId);
-        await local.cacheOrders(remoteItems);
-        return remoteItems.map((e) => e.toDomain()).toList();
+        final activeDtos = remoteItems
+            .where((dto) => dto.status != 'completed' && dto.status != 'cancelled' && dto.status != 'delivered')
+            .toList();
+        
+        // Preserve local draft orders that haven't been sent to server yet
+        final currentCache = await local.getCachedOrders();
+        final localDrafts = currentCache.where((dto) => dto.status == 'draft').toList();
+        
+        // Build merged list: remote orders + local drafts not already in remote
+        final remoteIds = activeDtos.map((d) => d.id).toSet();
+        final newDrafts = localDrafts.where((d) => !remoteIds.contains(d.id)).toList();
+        final merged = [...activeDtos, ...newDrafts];
+        
+        await local.cacheOrders(merged);
+        return merged.map((e) => e.toDomain()).toList();
       } catch (_) {
         // Fallback to cache on error
       }
@@ -336,7 +383,7 @@ class OrdersRepositoryImpl implements OrdersRepository {
     final cached = await local.getCachedOrders();
     return cached
         .map((dto) => dto.toDomain())
-        .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled)
+        .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled && o.status != OrderStatus.delivered)
         .toList();
   }
 }

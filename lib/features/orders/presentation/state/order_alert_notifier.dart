@@ -77,9 +77,15 @@ class OrderAlertNotifier extends StateNotifier<OrderAlertState> {
   final Map<String, Timer> _timeoutTimers = {};
   bool _disposed = false;
 
+  // Track orders accepted by THIS device so we can target the ready notification
+  final Set<String> _myAcceptedOrderIds = {};
+
   static const Duration _alertTimeout = Duration(seconds: 30);
 
   OrderAlertNotifier(this._ref) : super(const OrderAlertState());
+
+  /// Returns true if this waiter accepted the given order on this device.
+  bool isMyAcceptedOrder(String orderId) => _myAcceptedOrderIds.contains(orderId);
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
@@ -216,6 +222,9 @@ class OrderAlertNotifier extends StateNotifier<OrderAlertState> {
     try {
       final actionService = _ref.read(orderActionServiceProvider);
       await actionService.queueAcceptAlert(orderId, versionNum);
+
+      // Remember this order was accepted by ME so the ready popup targets only me
+      _myAcceptedOrderIds.add(orderId);
 
       _cancelTimeoutTimer(orderId);
       final elapsed = DateTime.now().difference(alert.receivedAt);

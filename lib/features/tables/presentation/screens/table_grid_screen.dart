@@ -7,6 +7,7 @@ import '../../domain/entities/restaurant_table.dart';
 import '../state/table_grid_notifier.dart';
 import '../../../orders/presentation/state/orders_projection_provider.dart';
 import '../../../orders/domain/entities/order.dart';
+import '../../../orders/providers/orders_providers.dart';
 import '../../../orders/providers/orders_realtime_provider.dart';
 import '../../../../shared/models/money.dart';
 
@@ -23,6 +24,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
   @override
   Widget build(BuildContext context) {
     ref.watch(ordersRealtimeProvider);
+    ref.watch(activeOrdersProvider);
     final stateAsync = ref.watch(tableGridNotifierProvider);
     final activeOrders = ref.watch(ordersProjectionProvider);
     final theme = Theme.of(context);
@@ -88,66 +90,80 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                         const SizedBox(height: 32),
 
                         // Main Grid
-                        stateAsync.when(
-                          loading: () => const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(32.0),
-                              child: CircularProgressIndicator(color: Color(0xFFE31E24)),
-                            ),
-                          ),
-                          error: (err, stack) => Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFBA1A1A)),
-                                const SizedBox(height: 16),
-                                Text('Failed to load layout: $err', style: theme.textTheme.bodyMedium),
-                                const SizedBox(height: 16),
-                                ElevatedButton(
-                                  onPressed: () => ref.invalidate(tableGridNotifierProvider),
-                                  child: const Text('Retry'),
+                        Consumer(
+                          builder: (context, ref, child) {
+                            final activeOrders = ref.watch(ordersProjectionProvider);
+                            return stateAsync.when(
+                              loading: () => const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(32.0),
+                                  child: CircularProgressIndicator(color: Color(0xFFE31E24)),
                                 ),
-                              ],
-                            ),
-                          ),
-                          data: (state) {
-                            // Filter tables by selected floor
-                            final tables = _selectedZone == 'All'
-                                ? state.tables
-                                : state.tables.where((t) => t.floorName == _selectedZone).toList();
-
-                            if (tables.isEmpty) {
-                              return Center(
-                                child: Text(
-                                  'No tables available',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 16,
-                                    color: isDark ? Colors.white54 : const Color(0xFF64748B),
-                                  ),
+                              ),
+                              error: (err, stack) => Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFBA1A1A)),
+                                    const SizedBox(height: 16),
+                                    Text('Failed to load layout: $err', style: theme.textTheme.bodyMedium),
+                                    const SizedBox(height: 16),
+                                    ElevatedButton(
+                                      onPressed: () => ref.invalidate(tableGridNotifierProvider),
+                                      child: const Text('Retry'),
+                                    ),
+                                  ],
                                 ),
-                              );
-                            }
-                            
-                            return LayoutBuilder(
-                              builder: (context, constraints) {
-                                int crossAxisCount = 1;
+                              ),
+                              data: (state) {
+                                // Filter tables by selected floor
+                                final tables = _selectedZone == 'All'
+                                    ? state.tables
+                                    : state.tables.where((t) => t.floorName == _selectedZone).toList();
 
-                                return GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: crossAxisCount,
-                                    crossAxisSpacing: 16,
-                                    mainAxisSpacing: 16,
-                                    childAspectRatio: 3.2,
-                                  ),
-                                  itemCount: tables.length,
-                                  itemBuilder: (context, index) {
-                                    final table = tables[index];
-                                    return _buildTableCard(table, isDark, activeOrders)
-                                      .animate()
-                                      .fadeIn(delay: (50 * index).ms)
-                                      .slideY(begin: 0.1, delay: (50 * index).ms);
+                                if (tables.isEmpty) {
+                                  return Center(
+                                    child: Text(
+                                      'No tables available',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 16,
+                                        color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  );
+                                }
+                                
+                                return LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    int crossAxisCount = 1;
+                                    double childAspectRatio = 3.2;
+
+                                    if (constraints.maxWidth >= 900) {
+                                      crossAxisCount = 3;
+                                      childAspectRatio = 1.6;
+                                    } else if (constraints.maxWidth >= 600) {
+                                      crossAxisCount = 2;
+                                      childAspectRatio = 1.8;
+                                    }
+
+                                    return GridView.builder(
+                                      shrinkWrap: true,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: crossAxisCount,
+                                        crossAxisSpacing: 16,
+                                        mainAxisSpacing: 16,
+                                        childAspectRatio: childAspectRatio,
+                                      ),
+                                      itemCount: tables.length,
+                                      itemBuilder: (context, index) {
+                                        final table = tables[index];
+                                        return _buildTableCard(table, isDark, activeOrders)
+                                          .animate()
+                                          .fadeIn(delay: (50 * index).ms)
+                                          .slideY(begin: 0.1, delay: (50 * index).ms);
+                                      },
+                                    );
                                   },
                                 );
                               },
@@ -250,7 +266,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
     var totalCents = 0;
     bool hasOrders = false;
     for (final o in activeOrders) {
-      if (o.tableId == table.id && o.status != OrderStatus.completed && o.status != OrderStatus.cancelled) {
+      if (o.tableId == table.id && o.status != OrderStatus.completed && o.status != OrderStatus.cancelled && o.status != OrderStatus.delivered) {
         totalCents += o.totalPrice.amountInCents;
         hasOrders = true;
       }
@@ -261,13 +277,20 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
   Widget _buildTableCard(RestaurantTable table, bool isDark, List<Order> activeOrders) {
     final status = table.status;
     
+    // Check if the table has any active order currently in the projection
+    final hasActiveOrder = activeOrders.any((o) =>
+        o.tableId == table.id &&
+        o.status != OrderStatus.completed &&
+        o.status != OrderStatus.cancelled &&
+        o.status != OrderStatus.delivered);
+
     // Map backend statuses to design states
-    // Vacant = available
+    // Vacant = available (unless we have active orders, which means occupied)
     // Occupied = occupied
     // Calling = needsAttention
     // Bill Requested = reserved (mocked mapping)
     
-    if (status == TableStatus.available) {
+    if (status == TableStatus.available && !hasActiveOrder) {
       return _buildVacantCard(table, isDark);
     } else if (status == TableStatus.needsAttention) {
       return _buildCallingCard(table, isDark, activeOrders);

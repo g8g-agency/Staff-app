@@ -3,7 +3,6 @@
 // Fullscreen Rapido/Uber-style order alert popup.
 // Appears over any screen. Animated entrance. 30s countdown.
 
-import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,7 +42,7 @@ class _OrderAlertListenerState extends ConsumerState<OrderAlertListener> {
         return;
       }
       // Only show if it's a different alert than what's currently displayed
-      if (next.alertId == _activeAlertId) return;
+      if (next.orderId == _activeAlertId) return;
 
       _dismissOverlay();
       _showAlertOverlay(next);
@@ -64,7 +63,7 @@ class _OrderAlertListenerState extends ConsumerState<OrderAlertListener> {
   }
 
   void _showAlertOverlay(IncomingOrderAlert alert) {
-    _activeAlertId = alert.alertId;
+    _activeAlertId = alert.orderId;
 
     // Start audio
     OrderAlertAudioManager().startAlert();
@@ -164,10 +163,6 @@ class _IncomingOrderAlertOverlayState
   bool _isAccepting = false;
   bool _isPassing = false;
 
-  static const int _timeoutSeconds = 30;
-  late Timer _countdownTimer;
-  int _secondsRemaining = _timeoutSeconds;
-
   @override
   void initState() {
     super.initState();
@@ -197,22 +192,11 @@ class _IncomingOrderAlertOverlayState
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    // Countdown ring controller
+    // Countdown controller kept but not used for auto-expiry
     _countdownController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: _timeoutSeconds),
-    )..forward();
-
-    // Start countdown
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      setState(() {
-        _secondsRemaining--;
-      });
-      if (_secondsRemaining <= 0) {
-        t.cancel();
-        _onExpired();
-      }
-    });
+      duration: const Duration(seconds: 30),
+    );
 
     _entranceController.forward();
   }
@@ -222,7 +206,6 @@ class _IncomingOrderAlertOverlayState
     _entranceController.dispose();
     _pulseController.dispose();
     _countdownController.dispose();
-    _countdownTimer.cancel();
     super.dispose();
   }
 
@@ -326,6 +309,11 @@ class _IncomingOrderAlertOverlayState
 
   Widget _buildCardContent() {
     final alertState = ref.watch(orderAlertNotifierProvider);
+    // Find the current live version of this alert from the state to catch updates/enrichment
+    final liveAlert = alertState.queue.firstWhere(
+      (a) => a.orderId == widget.alert.orderId,
+      orElse: () => widget.alert,
+    );
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -361,23 +349,21 @@ class _IncomingOrderAlertOverlayState
                 ],
               ),
             ),
-          _buildHeader(),
+          _buildHeader(liveAlert),
           const SizedBox(height: 20),
-          _buildTableBadge(),
+          _buildTableBadge(liveAlert),
           const SizedBox(height: 20),
-          _buildOrderDetails(),
+          _buildOrderDetails(liveAlert),
           const SizedBox(height: 12),
-          _buildItemsList(),
+          _buildItemsList(liveAlert),
           const SizedBox(height: 24),
-          _buildCountdownRow(),
-          const SizedBox(height: 20),
           _buildActionButtons(),
         ],
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(IncomingOrderAlert alert) {
     return Row(
       children: [
         // Bell icon with pulse
@@ -408,7 +394,7 @@ class _IncomingOrderAlertOverlayState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.alert.isReassignment
+                alert.isReassignment
                     ? 'Order Passed to You'
                     : 'New Order Received!',
                 style: GoogleFonts.inter(
@@ -417,26 +403,7 @@ class _IncomingOrderAlertOverlayState
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 2),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF6B35).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: const Color(0xFFFF6B35).withValues(alpha: 0.4),
-                  ),
-                ),
-                child: Text(
-                  '⚡ HIGH PRIORITY',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFFF6B35),
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
+
             ],
           ),
         ),
@@ -444,7 +411,7 @@ class _IncomingOrderAlertOverlayState
     );
   }
 
-  Widget _buildTableBadge() {
+  Widget _buildTableBadge(IncomingOrderAlert alert) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -473,7 +440,7 @@ class _IncomingOrderAlertOverlayState
           ),
           const SizedBox(height: 4),
           Text(
-            widget.alert.tableNumber,
+            alert.tableNumber,
             style: GoogleFonts.inter(
               fontSize: 42,
               fontWeight: FontWeight.w900,
@@ -482,7 +449,7 @@ class _IncomingOrderAlertOverlayState
             ),
           ),
           Text(
-            widget.alert.orderNumber,
+            alert.orderNumber,
             style: GoogleFonts.inter(
               fontSize: 13,
               color: Colors.white54,
@@ -494,21 +461,21 @@ class _IncomingOrderAlertOverlayState
     );
   }
 
-  Widget _buildOrderDetails() {
+  Widget _buildOrderDetails(IncomingOrderAlert alert) {
     final timeStr = TimeOfDay.fromDateTime(
-      widget.alert.orderTime,
+      alert.orderTime,
     ).format(context);
     return Row(
       children: [
         _buildDetailChip(
           Icons.shopping_bag_outlined,
-          '${widget.alert.itemCount} Items',
+          '${alert.itemCount} Items',
           const Color(0xFF4ECDC4),
         ),
         const SizedBox(width: 8),
         _buildDetailChip(
           Icons.currency_rupee,
-          widget.alert.formattedTotal.replaceAll('₹', ''),
+          alert.formattedTotal.replaceAll('₹', ''),
           const Color(0xFFFFD700),
         ),
         const SizedBox(width: 8),
@@ -516,6 +483,7 @@ class _IncomingOrderAlertOverlayState
       ],
     );
   }
+
 
   Widget _buildDetailChip(IconData icon, String label, Color color) {
     return Expanded(
@@ -546,8 +514,8 @@ class _IncomingOrderAlertOverlayState
     );
   }
 
-  Widget _buildItemsList() {
-    if (widget.alert.items.isEmpty) return const SizedBox.shrink();
+  Widget _buildItemsList(IncomingOrderAlert alert) {
+    if (alert.items.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -591,7 +559,7 @@ class _IncomingOrderAlertOverlayState
                     border: Border.all(color: Colors.white12),
                   ),
                   child: Column(
-                    children: widget.alert.items
+                    children: alert.items
                         .map(
                           (item) => Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -640,70 +608,8 @@ class _IncomingOrderAlertOverlayState
     );
   }
 
-  Widget _buildCountdownRow() {
-    final progress = _secondsRemaining / _timeoutSeconds;
-    final isUrgent = _secondsRemaining <= 10;
 
-    return Row(
-      children: [
-        // Circular countdown
-        SizedBox(
-          width: 48,
-          height: 48,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              AnimatedBuilder(
-                animation: _countdownController,
-                builder: (_, _) => CustomPaint(
-                  painter: _CountdownRingPainter(
-                    progress: progress,
-                    color: isUrgent ? Colors.red : const Color(0xFFFF6B35),
-                  ),
-                  size: const Size(48, 48),
-                ),
-              ),
-              Text(
-                '$_secondsRemaining',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isUrgent ? Colors.red : const Color(0xFFFF6B35),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isUrgent ? 'Respond Now!' : 'Auto-expires in',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: isUrgent ? Colors.red.shade300 : Colors.white54,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: Colors.white12,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    isUrgent ? Colors.red : const Color(0xFFFF6B35),
-                  ),
-                  minHeight: 6,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+
 
   Widget _buildActionButtons() {
     return Column(

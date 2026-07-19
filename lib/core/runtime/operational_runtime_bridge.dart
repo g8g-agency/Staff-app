@@ -35,6 +35,7 @@ import '../../features/auth/presentation/state/auth_notifier.dart';
 import '../../features/orders/providers/orders_providers.dart';
 import '../../features/orders/providers/orders_realtime_provider.dart';
 import '../../features/orders/presentation/state/orders_projection_provider.dart';
+import '../../features/orders/domain/entities/order.dart';
 import '../../features/tables/providers/tables_providers.dart';
 import '../../features/waiter_calls/presentation/state/waiter_calls_providers.dart';
 // KDS runtime
@@ -284,35 +285,53 @@ class OperationalRuntimeBridge {
   Future<void> _handleOrderAlertEvent(RuntimeEvent event) async {
     final payload = event.payload;
     final alertService = _ref.read(orderAlertServiceProvider);
-    // Backend sends 'assignedStaffId' for ORDER_READY_FOR_PICKUP/ORDER_PREPARING
-    // and 'acceptedByStaffId' for ORDER_ACCEPTED — check both.
-    final assignedStaffId = (payload['assignedStaffId'] ?? payload['acceptedByStaffId']) as String?;
     final currentStaffId = _ref.read(authNotifierProvider).loggedInStaff?.id;
 
-    // Only show alert if this event targets ME, or has no target (broadcast)
-    if (assignedStaffId != null && assignedStaffId != currentStaffId) {
-      debugPrint(
-        '[OperationalRuntimeBridge] ${event.type.name} for different staff ($assignedStaffId) vs me ($currentStaffId). Temporarily allowing for testing!',
-      );
-      // return; // COMMENTED OUT FOR TESTING
-    } else {
-      debugPrint(
-        '[OperationalRuntimeBridge] ${event.type.name} targets me ($currentStaffId) or is broadcast. Proceeding.',
-      );
-    }
-
-    debugPrint(
-      '[OperationalRuntimeBridge] ${event.type.name} for current staff. Queuing alert.',
-    );
-
     if (event.type == RuntimeEventType.orderReadyForPickup) {
+      // Only notify the waiter who accepted this order on this device.
+      final orderId = payload['orderId'] as String? ?? '';
+      final notifier = _ref.read(orderAlertNotifierProvider.notifier);
+
+      // Check local tracking first (most reliable — set when waiter taps Accept)
+      final isMyOrder = orderId.isNotEmpty
+          ? notifier.isMyAcceptedOrder(orderId)
+          : true; // no ID → broadcast to all as fallback
+
+      // Also allow if acceptedByStaffId matches (backend sends it when available)
+      final acceptedByStaffId =
+          (payload['acceptedByStaffId'] ?? payload['assignedStaffId']) as String?;
+      final isTargetedToMe =
+          acceptedByStaffId != null && acceptedByStaffId == currentStaffId;
+
+      if (!isMyOrder && !isTargetedToMe && orderId.isNotEmpty) {
+        debugPrint(
+          '[OperationalRuntimeBridge] ORDER_READY_FOR_PICKUP for order $orderId — not mine. Ignoring.',
+        );
+        return;
+      }
+
+      debugPrint(
+        '[OperationalRuntimeBridge] ORDER_READY_FOR_PICKUP for order $orderId — showing popup.',
+      );
       alertService.playOrderReadyAlert();
       _ref.read(orderAlertNotifierProvider.notifier).enqueueReadyAlert(payload);
     } else {
+      // ORDER_ASSIGNED and other alerts — use assignedStaffId targeting
+      final assignedStaffId = (payload['assignedStaffId'] ?? payload['acceptedByStaffId']) as String?;
+      if (assignedStaffId != null && assignedStaffId != currentStaffId) {
+        debugPrint(
+          '[OperationalRuntimeBridge] ${event.type.name} for staff $assignedStaffId, not me ($currentStaffId). Ignoring.',
+        );
+        return;
+      }
+      debugPrint(
+        '[OperationalRuntimeBridge] ${event.type.name} targets me ($currentStaffId) or is broadcast. Proceeding.',
+      );
       alertService.playNewOrderAlert();
       _ref.read(orderAlertNotifierProvider.notifier).enqueueAlert(payload);
     }
   }
+
 
 
 
@@ -577,17 +596,39 @@ class OperationalRuntimeBridge {
     );
   }
 
-  // Full-resync rebuilders (called on reconnect / epoch change / invalidation)
   Future<void> _rebuildOrdersProjection() async {
     debugPrint('[OperationalRuntimeBridge] Full rebuild: orders');
-    final orders = _store.getAuthoritativeOrders();
+    final serverOrders = _store.getAuthoritativeOrders();
+    
+    // Merge with locally-cached draft orders that haven't reached the server yet
+    final repo = _ref.read(ordersRepositoryProvider);
+    final localOrders = await repo.fetchActiveOrders();
+    
+    // Build merged map: server orders take precedence for same IDs, but keep local drafts
+    final mergedMap = <String, Order>{};
+    // Add local active orders first (includes local drafts)
+    for (final order in localOrders) {
+      mergedMap[order.id] = order;
+    }
+    // Server authoritative orders overwrite (they are more up-to-date)
+    for (final order in serverOrders) {
+      // Only include non-terminal orders
+      if (order.status != OrderStatus.completed && order.status != OrderStatus.cancelled && order.status != OrderStatus.delivered) {
+        mergedMap[order.id] = order;
+      } else {
+        // Remove terminal orders even if they were in local cache
+        mergedMap.remove(order.id);
+      }
+    }
+    
+    final merged = mergedMap.values.toList();
     
     // Update Riverpod Provider for UI
-    _ref.read(ordersProjectionProvider.notifier).updateProjection(orders);
+    _ref.read(ordersProjectionProvider.notifier).updateProjection(merged);
 
-    // Also update offline cache
-    final repo = _ref.read(ordersRepositoryProvider);
-    await repo.syncOrders(orders); 
+    // Also update offline cache (server-authoritative only — no local drafts in the sync)
+    await repo.syncOrders(serverOrders.where((o) =>
+      o.status != OrderStatus.completed && o.status != OrderStatus.cancelled && o.status != OrderStatus.delivered).toList());
   }
 
   Future<void> _rebuildTablesProjection() async {

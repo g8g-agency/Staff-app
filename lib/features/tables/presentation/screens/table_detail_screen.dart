@@ -68,7 +68,7 @@ class TableDetailScreen extends ConsumerWidget {
             loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFE31E24))),
             error: (err, stack) => Center(child: Text('Error loading active session: $err')),
             data: (order) {
-              if (order == null || table.status == TableStatus.available || table.status == TableStatus.cleaning) {
+              if (order == null) {
                 return _buildEmptyState(context, ref, table, theme, isDark);
               }
               return _buildActiveSession(context, ref, table, order, isDark);

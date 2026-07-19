@@ -144,15 +144,43 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
       };
     }).toList();
 
+    // Translate backend status names to Flutter OrderStatus enum names
+    final backendStatus = payload['status']?.toString() ?? 'pending';
+    final flutterStatus = _translateBackendStatus(backendStatus);
+
     return {
       'id': payload['id'],
       'tableId': payload['table_id'] ?? '',
       'items': items,
-      'status': payload['status'] ?? 'pending',
+      'status': flutterStatus,
       'createdAt': payload['created_at'] ?? DateTime.now().toIso8601String(),
       'updatedAt': payload['updated_at'] ?? DateTime.now().toIso8601String(),
       'waiterName': payload['staff_name'] ?? payload['waiterName'] ?? 'John Doe',
       'cancelLogs': [],
     };
+  }
+
+  /// Translates backend order status strings to Flutter OrderStatus enum names.
+  /// Backend: pending, accepted, preparing, ready, delivered, completed, cancelled
+  /// Flutter enum: draft, sent, preparing, ready, delivered, completed, cancelled
+  String _translateBackendStatus(String backendStatus) {
+    switch (backendStatus.toLowerCase()) {
+      case 'pending':
+        return 'sent';       // pending on server = sent to kitchen from staff app
+      case 'accepted':
+        return 'sent';       // accepted by kitchen = still in-progress for staff
+      case 'preparing':
+        return 'preparing';
+      case 'ready':
+        return 'ready';
+      case 'delivered':
+        return 'delivered';
+      case 'completed':
+        return 'completed';
+      case 'cancelled':
+        return 'cancelled';
+      default:
+        return 'sent';       // unknown → treat as active
+    }
   }
 }

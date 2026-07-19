@@ -130,7 +130,15 @@ class IncomingOrderAlert extends Equatable {
   }
 
   @override
-  List<Object?> get props => [alertId, orderId, status, versionNum];
+  List<Object?> get props => [
+        alertId,
+        orderId,
+        status,
+        versionNum,
+        itemCount,
+        totalAmountMinor,
+        items,
+      ];
 }
 
 class OrderReadyAlert extends Equatable {

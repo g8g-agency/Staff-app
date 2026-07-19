@@ -126,11 +126,35 @@ class DeterministicProjectionStore {
       };
     }).toList();
 
+    final backendStatus = payload['status']?.toString() ?? 'pending';
+    String flutterStatus = 'sent';
+    switch (backendStatus.toLowerCase()) {
+      case 'pending':
+      case 'accepted':
+        flutterStatus = 'sent';
+        break;
+      case 'preparing':
+        flutterStatus = 'preparing';
+        break;
+      case 'ready':
+        flutterStatus = 'ready';
+        break;
+      case 'delivered':
+        flutterStatus = 'delivered';
+        break;
+      case 'completed':
+        flutterStatus = 'completed';
+        break;
+      case 'cancelled':
+        flutterStatus = 'cancelled';
+        break;
+    }
+
     final staffOrderJson = {
       'id': payload['id'],
       'tableId': payload['table_id'] ?? '',
       'items': items,
-      'status': payload['status'] ?? 'pending',
+      'status': flutterStatus,
       'createdAt': payload['created_at'] ?? DateTime.now().toIso8601String(),
       'updatedAt': payload['updated_at'] ?? DateTime.now().toIso8601String(),
       'waiterName': payload['staff_name'] ?? 'John Doe',
