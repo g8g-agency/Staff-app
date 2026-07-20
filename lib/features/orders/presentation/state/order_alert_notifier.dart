@@ -122,8 +122,8 @@ class OrderAlertNotifier extends StateNotifier<OrderAlertState> {
       );
     }
 
-    // Start 30-second timeout timer
-    _startTimeoutTimer(alert);
+    // No auto-expire — alert stays until staff explicitly accepts or passes it.
+    // _startTimeoutTimer(alert);
   }
 
   /// Enrich an existing queued alert with data resolved from the full order fetch.
