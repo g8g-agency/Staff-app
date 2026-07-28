@@ -84,13 +84,19 @@ void bootstrap({
         const secureStorage = SecureLocalStorage();
         final refreshToken = await secureStorage.read('refresh_token');
         if (refreshToken != null) {
-          await client.auth.setSession(refreshToken);
+          // recoverSession exchanges a refresh token for a new access+refresh pair.
+          // setSession() expects a full persisted JSON session string — NOT a raw
+          // refresh token. Using recoverSession() is the correct API for this.
+          await client.auth.recoverSession(refreshToken);
           talker.info('[Supabase] Stored session recovered successfully.');
         } else {
           talker.warning('[Supabase] Stored context exists but no refresh token found.');
         }
       } catch (e) {
         talker.error('[Supabase] Failed to recover stored session: $e');
+        // If recovery fails (e.g. expired token), force a clean session
+        // so the Supabase client is in a defined unauthenticated state.
+        try { await client.auth.signOut(); } catch (_) {}
       }
     }
 

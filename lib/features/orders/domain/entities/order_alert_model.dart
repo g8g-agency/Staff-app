@@ -16,9 +16,10 @@ class AlertOrderItem extends Equatable {
   const AlertOrderItem({required this.name, required this.quantity});
 
   factory AlertOrderItem.fromMap(Map<String, dynamic> map) {
+    final qtyNum = (map['quantity'] ?? map['qty']) as num?;
     return AlertOrderItem(
       name: (map['name'] as String?) ?? 'Unknown Item',
-      quantity: (map['quantity'] as int?) ?? 1,
+      quantity: qtyNum?.toInt() ?? 1,
     );
   }
 
@@ -58,12 +59,13 @@ class IncomingOrderAlert extends Equatable {
   });
 
   factory IncomingOrderAlert.fromPayload(Map<String, dynamic> payload) {
-    final itemsList = (payload['items'] as List<dynamic>? ?? [])
-        .map((i) => AlertOrderItem.fromMap(i as Map<String, dynamic>))
+    final rawItemsList = payload['items'] as List<dynamic>? ?? [];
+    final itemsList = rawItemsList
+        .map((i) => AlertOrderItem.fromMap(i is Map<String, dynamic> ? i : {}))
         .toList();
 
     // Safe int extractor — JSON over WebSocket may deliver integers as num/double
-    int? _toInt(dynamic v) {
+    int? parseToInt(dynamic v) {
       if (v == null) return null;
       if (v is int) return v;
       if (v is num) return v.round();
@@ -73,9 +75,9 @@ class IncomingOrderAlert extends Equatable {
 
     // Resolve total in minor units (paise). Backend sends totalAmountMinor as int.
     final resolvedTotalMinor =
-        _toInt(payload['totalAmountMinor'] ?? payload['total_amount_minor']) ??
+        parseToInt(payload['totalAmountMinor'] ?? payload['total_amount_minor']) ??
         (() {
-          final rawPrice = payload['total_price'];
+          final rawPrice = payload['total_price'] ?? payload['total_amount'];
           return rawPrice is num ? (rawPrice * 100).round() : 0;
         })();
 
@@ -84,12 +86,12 @@ class IncomingOrderAlert extends Equatable {
       alertId: '${payload['orderId'] ?? payload['id']}_${receivedAt.millisecondsSinceEpoch}',
       orderId: (payload['orderId'] ?? payload['id'])?.toString() ?? '',
       orderNumber: (payload['orderNumber'] ?? payload['order_number'])?.toString() ?? 'N/A',
-      tableNumber: (payload['tableLabel'] ?? payload['tableNumber'] ?? payload['table_num'])?.toString() ?? 'N/A',
+      tableNumber: (payload['tableLabel'] ?? payload['tableNumber'] ?? payload['table_num'] ?? payload['table_name'])?.toString() ?? 'N/A',
       assignedStaffId: (payload['assignedStaffId'] ?? payload['assigned_waiter_id'] ?? payload['assigned_staff_id'])?.toString(),
-      itemCount: _toInt(payload['itemCount']) ?? itemsList.length,
+      itemCount: parseToInt(payload['itemCount']) ?? itemsList.length,
       totalAmountMinor: resolvedTotalMinor,
-      versionNum: _toInt(payload['versionNum'] ?? payload['version_num']) ?? 1,
-      orderTime: DateTime.tryParse((payload['orderTime'] ?? payload['created_at'] ?? '') as String) ?? receivedAt,
+      versionNum: parseToInt(payload['versionNum'] ?? payload['version_num']) ?? 1,
+      orderTime: (DateTime.tryParse((payload['orderTime'] ?? payload['created_at'] ?? '') as String) ?? receivedAt).toLocal(),
       receivedAt: receivedAt,
       items: itemsList,
       status: OrderAlertStatus.pending,

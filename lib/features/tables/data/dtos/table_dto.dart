@@ -49,7 +49,7 @@ abstract class TableDto with _$TableDto {
     // Extract floor name from Supabase join: table_floors(name)
     final floorData = mappedJson['table_floors'];
     if (floorData is Map && floorData['name'] != null) {
-      mappedJson['floorName'] = 'Floor ${floorData['name']}';
+      mappedJson['floorName'] = floorData['name']?.toString() ?? '';
     }
     // Remove the nested object so freezed doesn't choke
     mappedJson.remove('table_floors');

@@ -8,6 +8,7 @@ import '../../domain/entities/order.dart';
 import '../../domain/entities/order_item.dart';
 import '../../providers/orders_providers.dart';
 import '../state/active_order_notifier.dart';
+import '../state/orders_projection_provider.dart';
 import '../../../tables/presentation/state/table_grid_notifier.dart';
 
 class OrderDetailsScreen extends ConsumerWidget {
@@ -28,7 +29,15 @@ class OrderDetailsScreen extends ConsumerWidget {
           );
         }
 
-        final order = snapshot.data;
+        // Primary source: local cache stream
+        // Fallback: in-memory projection (populated from WebSocket events)
+        Order? order = snapshot.data;
+        if (order == null) {
+          final projection = ref.read(ordersProjectionProvider);
+          final idx = projection.indexWhere((o) => o.id == orderId);
+          if (idx != -1) order = projection[idx];
+        }
+
         if (order == null) {
           return Scaffold(
             backgroundColor: const Color(0xFF0F0F1A),
@@ -42,15 +51,20 @@ class OrderDetailsScreen extends ConsumerWidget {
 
         return Consumer(
           builder: (context, ref, _) {
+            // Watch projection so UI updates when WebSocket pushes new data
+            final projection = ref.watch(ordersProjectionProvider);
+            final projIdx = projection.indexWhere((o) => o.id == orderId);
+            final liveOrder = projIdx != -1 ? projection[projIdx] : order!;
+
             final tablesAsync = ref.watch(tableGridNotifierProvider);
             final tableLabel = tablesAsync.valueOrNull?.tables
-                    .where((t) => t.id == order.tableId)
+                    .where((t) => t.id == liveOrder.tableId)
                     .firstOrNull
                     ?.label ??
-                'Table ${order.tableId.substring(0, 4).toUpperCase()}';
+                'Table ${liveOrder.tableId.substring(0, 4).toUpperCase()}';
 
             return _OrderDetailsContent(
-              order: order,
+              order: liveOrder,
               tableLabel: tableLabel,
             );
           },
@@ -242,9 +256,43 @@ class _OrderDetailsContent extends ConsumerWidget {
                 _buildWaiterCard(context, isDark),
                 const SizedBox(height: 14),
                 _buildItemsCard(context, ref, isDark),
+                const SizedBox(height: 14),
                 if (order.cancelLogs.isNotEmpty) ...[
                   const SizedBox(height: 14),
                   _buildCancelLogsCard(context, isDark),
+                ],
+                if (order.status != OrderStatus.completed && order.status != OrderStatus.cancelled) ...[
+                  const SizedBox(height: 14),
+                  _Card(
+                    isDark: isDark,
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          await ref.read(activeOrderNotifierProvider(order.tableId).notifier).markOrderServed(order.id);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Order marked as SERVED & Completed!'),
+                                backgroundColor: Color(0xFF22C55E),
+                              ),
+                            );
+                            Navigator.of(context).pop();
+                          }
+                        },
+                        icon: const Icon(Icons.check_circle_rounded, color: Colors.white),
+                        label: Text(
+                          'Mark Served & Complete Order',
+                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF22C55E),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 32),
               ]),

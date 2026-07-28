@@ -74,10 +74,11 @@ class _OrderAlertListenerState extends ConsumerState<OrderAlertListener> {
     // CRITICAL FIX: Wrap the overlay in ProviderScope so it has access to Riverpod
     // and can reactively update when enrichAlert() is called with real items/total.
     _currentOverlay = OverlayEntry(
-      builder: (overlayContext) => ProviderScope(
-        parent: ProviderScope.containerOf(context),
+      builder: (overlayContext) => UncontrolledProviderScope(
+        container: ProviderScope.containerOf(context),
         child: _IncomingOrderAlertOverlay(
           orderId: alert.orderId,
+          initialAlert: alert,
           onAccepted: () => _dismissOverlay(),
           onPassed: () => _dismissOverlay(),
           onExpired: () => _dismissOverlay(),
@@ -140,12 +141,14 @@ class _IncomingOrderAlertOverlay extends ConsumerStatefulWidget {
   /// We pass only the orderId (not the alert object) so the widget always
   /// reads the LATEST enriched alert from the live provider state.
   final String orderId;
+  final IncomingOrderAlert initialAlert;
   final VoidCallback onAccepted;
   final VoidCallback onPassed;
   final VoidCallback onExpired;
 
   const _IncomingOrderAlertOverlay({
     required this.orderId,
+    required this.initialAlert,
     required this.onAccepted,
     required this.onPassed,
     required this.onExpired,
@@ -224,11 +227,6 @@ class _IncomingOrderAlertOverlayState
     super.dispose();
   }
 
-  void _onExpired() {
-    ref.read(orderAlertNotifierProvider.notifier).expireAlert(widget.orderId);
-    widget.onExpired();
-  }
-
   Future<void> _onAccept(IncomingOrderAlert alert) async {
     if (_isAccepting) return;
     HapticFeedback.heavyImpact();
@@ -258,10 +256,10 @@ class _IncomingOrderAlertOverlayState
     // Always read the LATEST live version of this alert — this is what enables
     // enrichment to appear (items/total update from 0 to real values).
     final alertState = ref.watch(orderAlertNotifierProvider);
-    final liveAlert = alertState.queue.firstWhere(
-      (a) => a.orderId == widget.orderId,
-      orElse: () => alertState.queue.firstOrNull ?? _emptyAlert(),
-    );
+    final liveAlert = alertState.queue.cast<IncomingOrderAlert?>().firstWhere(
+      (a) => a?.orderId == widget.orderId || a?.alertId.startsWith(widget.orderId) == true,
+      orElse: () => widget.initialAlert,
+    ) ?? widget.initialAlert;
 
     // If this alert was removed from the queue (accepted/passed), dismiss
     if (!alertState.queue.any((a) => a.orderId == widget.orderId)) {
@@ -270,7 +268,7 @@ class _IncomingOrderAlertOverlayState
       });
     }
 
-    final isEnriched = liveAlert.itemCount > 0 || liveAlert.items.isNotEmpty;
+    final isEnriched = liveAlert.itemCount > 0 || liveAlert.items.isNotEmpty || liveAlert.totalAmountMinor > 0;
 
     return Material(
       color: Colors.transparent,
@@ -636,12 +634,10 @@ class _IncomingOrderAlertOverlayState
   }
 
   Widget _buildItemsSection(IncomingOrderAlert alert, bool isEnriched) {
-    if (!isEnriched) {
-      // Show shimmer skeleton rows while waiting for enrichment
+    if (!isEnriched || (alert.items.isEmpty && alert.itemCount > 0)) {
+      // Show shimmer skeleton rows while waiting for item details
       return _buildItemsShimmer();
     }
-
-    if (alert.items.isEmpty) return const SizedBox.shrink();
 
     return Container(
       decoration: BoxDecoration(

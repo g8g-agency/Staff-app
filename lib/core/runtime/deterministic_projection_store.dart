@@ -107,26 +107,45 @@ class DeterministicProjectionStore {
   // ── Parsers (Moved from RealtimeSyncManager) ──────────────────────────────
 
   Order _parseOrder(Map<String, dynamic> payload) {
-    final items = (payload['items'] as List? ?? []).map((item) {
+    // Support two payload shapes:
+    //  1. Flat (old createOrderFromCart broadcast): payload IS the order
+    //  2. Nested (new KDS broadcast): payload['order'] is the order
+    final data = (payload.containsKey('order') && payload['order'] is Map)
+        ? (payload['order'] as Map<String, dynamic>)
+        : payload;
+
+    final itemList = (data['items'] as List?) ??
+        (data['order_items'] as List?) ??
+        (data['snapshot']?['items'] as List?) ??
+        [];
+
+    final rawItems = itemList.map((item) {
       final i = item as Map<String, dynamic>;
-      final priceInCents = ((i['unit_price'] as num? ?? 0.0) * 100).round();
+      final name = i['name'] ?? i['item_name_snapshot'] ?? i['menu_item_name'] ?? 'Item';
+      final qty = (i['qty'] ?? i['quantity'] ?? 1) as int;
+      final unitPriceMinor = i['unit_price_minor'] as num?;
+      final unitPrice = unitPriceMinor != null
+          ? (unitPriceMinor / 100).toDouble()
+          : (i['unit_price'] as num? ?? 0.0).toDouble();
+      final priceInCents = (unitPrice * 100).round();
+      final menuItemId = i['menu_item_id']?.toString() ?? i['id']?.toString() ?? 'unknown';
       return {
-        'id': i['id'],
+        'id': i['id']?.toString() ?? '',
         'product': {
-          'id': i['menu_item_id'],
-          'name': i['menu_item_name'] ?? 'Product',
+          'id': menuItemId,
+          'name': name,
           'priceInCents': priceInCents,
           'category': 'Mains',
           'availableModifiers': [],
         },
-        'quantity': i['quantity'] ?? 1,
+        'quantity': qty,
         'selectedModifiers': [],
         'seatNumber': 1,
-        'status': 'confirmed',
+        'status': i['status']?.toString() ?? 'queued',
       };
     }).toList();
 
-    final backendStatus = payload['status']?.toString() ?? 'pending';
+    final backendStatus = data['status']?.toString() ?? 'pending';
     String flutterStatus = 'sent';
     switch (backendStatus.toLowerCase()) {
       case 'pending':
@@ -151,13 +170,13 @@ class DeterministicProjectionStore {
     }
 
     final staffOrderJson = {
-      'id': payload['id'],
-      'tableId': payload['table_id'] ?? '',
-      'items': items,
+      'id': data['id'],
+      'tableId': data['table_id'] ?? payload['tableId'] ?? '',
+      'items': rawItems,
       'status': flutterStatus,
-      'createdAt': payload['created_at'] ?? DateTime.now().toIso8601String(),
-      'updatedAt': payload['updated_at'] ?? DateTime.now().toIso8601String(),
-      'waiterName': payload['staff_name'] ?? 'John Doe',
+      'createdAt': data['created_at'] ?? payload['createdAt'] ?? DateTime.now().toIso8601String(),
+      'updatedAt': data['updated_at'] ?? payload['updatedAt'] ?? DateTime.now().toIso8601String(),
+      'waiterName': data['staff_name'] ?? data['waiterName'] ?? 'John Doe',
       'cancelLogs': [],
     };
     return OrderDto.fromJson(staffOrderJson).toDomain();

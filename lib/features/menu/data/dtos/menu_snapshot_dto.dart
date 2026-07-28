@@ -54,13 +54,29 @@ class MenuItemDto {
   });
 
   factory MenuItemDto.fromJson(Map<String, dynamic> json) {
+    int priceMinor = 0;
+    if (json['price'] is Map) {
+      priceMinor = (json['price']['amount_minor'] as num? ?? 0).toInt();
+    } else if (json['price'] is num) {
+      priceMinor = (json['price'] as num).toInt();
+    } else {
+      priceMinor = (json['price_in_cents'] as num? ?? 0).toInt();
+    }
+
+    bool avail = true;
+    if (json['availability'] is Map) {
+      avail = json['availability']['is_available'] as bool? ?? true;
+    } else if (json['is_available'] is bool) {
+      avail = json['is_available'] as bool;
+    }
+
     return MenuItemDto(
       id: json['id'] as String,
       categoryId: json['category_id'] as String,
       name: json['name'] as String,
       description: json['description'] as String? ?? '',
-      priceInCents: json['price_in_cents'] as int? ?? json['price'] as int? ?? 0,
-      isAvailable: json['is_available'] as bool? ?? true,
+      priceInCents: priceMinor,
+      isAvailable: avail,
       modifierGroupIds: List<String>.from(json['modifier_group_ids'] as List? ?? []),
     );
   }
@@ -192,7 +208,11 @@ class MenuSnapshotDto {
     required this.taxConfig,
   });
 
-  factory MenuSnapshotDto.fromJson(Map<String, dynamic> json) {
+  factory MenuSnapshotDto.fromJson(Map<String, dynamic> rawJson) {
+    final json = (rawJson['data'] is Map<String, dynamic>)
+        ? rawJson['data'] as Map<String, dynamic>
+        : rawJson;
+
     return MenuSnapshotDto(
       categories: (json['categories'] as List? ?? [])
           .map((e) => MenuCategoryDto.fromJson(e as Map<String, dynamic>))

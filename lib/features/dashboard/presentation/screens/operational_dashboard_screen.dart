@@ -7,12 +7,12 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../auth/presentation/state/auth_notifier.dart';
 import '../../../tables/presentation/state/table_grid_notifier.dart';
-import '../../../kitchen/presentation/state/kitchen_runtime_providers.dart';
 import '../../../tables/domain/entities/restaurant_table.dart';
 import '../../../auth/domain/entities/branch.dart';
 import '../../../realtime/presentation/widgets/diagnostics/degraded_mode_coordinator_widget.dart';
 import '../../../orders/providers/orders_realtime_provider.dart';
 import '../../../orders/presentation/state/orders_projection_provider.dart';
+import '../../../orders/providers/orders_providers.dart';
 import '../../../orders/domain/entities/order.dart';
 
 class OperationalDashboardScreen extends ConsumerStatefulWidget {
@@ -70,31 +70,46 @@ class _OperationalDashboardScreenState
       alertTables = alertList.length;
     });
 
+    // Sync live database orders stream into the projection provider
+    ref.watch(liveOrdersProvider).whenData((ordersList) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(ordersProjectionProvider.notifier).updateProjection(ordersList);
+        }
+      });
+    });
+
     final orders = ref.watch(ordersProjectionProvider);
-    final int preparingCount = orders.where((o) => o.status == OrderStatus.preparing).length;
-    final int readyCount = orders.where((o) => o.status == OrderStatus.ready).length;
+    final int preparingCount = orders.where((o) => o.status == OrderStatus.preparing || o.status == OrderStatus.sent).length;
+    final int readyCount = orders.where((o) => o.status == OrderStatus.ready || o.status == OrderStatus.delivered).length;
     final int completedOrdersCount = orders.where((o) => o.status == OrderStatus.completed).length;
-    // Section load calculations
-    Map<String, Map<String, dynamic>> sectionStats = {
-      'Patio': {'total': 0, 'occupied': 0, 'range': 'T1-T3'},
-      'Main Hall': {'total': 0, 'occupied': 0, 'range': 'T4-T6'},
-      'Bar Area': {'total': 0, 'occupied': 0, 'range': 'T7-T8'},
-      'Garden': {'total': 0, 'occupied': 0, 'range': 'T9+'},
-    };
+    // Dynamic Section load calculations based on floorName resolved from database & staff assigned section
+    Map<String, Map<String, dynamic>> sectionStats = {};
+    final assignedSection = staff?.section ?? '';
+    if (assignedSection.isNotEmpty) {
+      sectionStats[assignedSection] = {'total': 0, 'occupied': 0, 'range': assignedSection};
+    }
 
     tablesAsync.whenData((state) {
       final tables = state.tables;
       for (var table in tables) {
-        final idNum = int.tryParse(table.id) ?? 1;
-        String section;
-        if (idNum <= 3) {
-          section = 'Patio';
-        } else if (idNum <= 6) {
-          section = 'Main Hall';
-        } else if (idNum <= 8) {
-          section = 'Bar Area';
-        } else {
-          section = 'Garden';
+        // Resolve floor section name dynamically (e.g. Main Hall, Patio, Bar Area) or fallback to ID ranges
+        String section = table.floorName ?? '';
+        if (section.isEmpty) {
+          final idNum = int.tryParse(table.id) ?? 1;
+          if (idNum <= 3) {
+            section = 'Patio';
+          } else if (idNum <= 6) {
+            section = 'Main Hall';
+          } else if (idNum <= 8) {
+            section = 'Bar Area';
+          } else {
+            section = 'Garden';
+          }
+        }
+
+        if (!sectionStats.containsKey(section)) {
+          sectionStats[section] = {'total': 0, 'occupied': 0, 'range': section};
         }
 
         sectionStats[section]!['total']++;
@@ -165,7 +180,7 @@ class _OperationalDashboardScreenState
             ),
             onPressed: () {
               ref.read(authNotifierProvider.notifier).logout();
-              context.go('/org-select');
+              context.go('/welcome');
             },
           ),
           const SizedBox(width: 8),

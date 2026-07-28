@@ -13,6 +13,7 @@
 //   → KitchenRuntimeCoordinator → KitchenProjectionRebuildEngine
 //     → KitchenTicketProjectionNotifier (reactive UI layer)
 //
+import 'dart:async';
 // Presence events additionally flow through:
 //   → PresenceGovernanceRuntime → PresenceHeartbeatManager
 //     → PresenceProjectionNotifier (reactive UI layer)
@@ -40,11 +41,11 @@ import '../../features/tables/providers/tables_providers.dart';
 import '../../features/waiter_calls/presentation/state/waiter_calls_providers.dart';
 // KDS runtime
 import '../../features/kitchen/presentation/state/kitchen_runtime_providers.dart';
+import '../../features/tables/presentation/state/table_grid_notifier.dart';
 // Presence governance
 import '../../features/staff/presentation/state/staff_presence_governance_providers.dart';
 // Order alerts
 import '../../features/orders/presentation/state/order_alert_notifier.dart';
-import '../../features/orders/presentation/state/orders_projection_provider.dart';
 import '../../features/manager/presentation/state/manager_providers.dart';
 
 // ━━━━━━━━━━━━━━━━━━━━━━ BRIDGE ━━━━━━━━━━━━━━━━━━━━━━
@@ -216,6 +217,20 @@ class OperationalRuntimeBridge {
       // They now strictly flow through the DeterministicProjectionStore.
       // Rebuild engine will pick up the invalidations and notify the UI.
       case RuntimeEventType.orderUpdate:
+        await _store.applyValidatedEvent(event);
+        // Check status in both flat payload and nested payload['order'] (KDS broadcast format)
+        final orderData = (event.payload.containsKey('order') && event.payload['order'] is Map)
+            ? (event.payload['order'] as Map<String, dynamic>)
+            : event.payload;
+        final status = (orderData['status'] ?? event.payload['status'] ?? event.payload['order_status'])?.toString().toLowerCase();
+        if (status == 'accepted' || status == 'ready' || status == 'ready_for_pickup') {
+          await _handleOrderAlertEvent(event);
+        }
+        // Immediately rebuild orders projection so UI gets the updated order
+        await _rebuildOrdersProjection();
+        // Force-refresh floor cards table status when an order is accepted/modified
+        _ref.read(tableGridNotifierProvider.notifier).refreshTables();
+        break;
       case RuntimeEventType.orderDelete:
       case RuntimeEventType.tableUpdate:
       case RuntimeEventType.tableDelete:
@@ -313,8 +328,18 @@ class OperationalRuntimeBridge {
       debugPrint(
         '[OperationalRuntimeBridge] ORDER_READY_FOR_PICKUP for order $orderId — showing popup.',
       );
-      alertService.playOrderReadyAlert();
+      unawaited(alertService.playOrderReadyAlert());
       _ref.read(orderAlertNotifierProvider.notifier).enqueueReadyAlert(payload);
+    } else if (event.type == RuntimeEventType.orderAccepted || event.type == RuntimeEventType.orderPreparing) {
+      // ORDER_ACCEPTED fires when KDS accepts an order.
+      // This is a BROADCAST event — ALL waiters on the floor need to see the popup
+      // so they know the order has been accepted and can track it.
+      // Do NOT filter by assignedStaffId here — the KDS staff ID != waiter staff ID.
+      debugPrint(
+        '[OperationalRuntimeBridge] ${event.type.name} — broadcasting alert to all staff.',
+      );
+      unawaited(alertService.playNewOrderAlert());
+      _ref.read(orderAlertNotifierProvider.notifier).enqueueAlert(payload);
     } else {
       // ORDER_ASSIGNED and other alerts — use assignedStaffId targeting
       final assignedStaffId = (payload['assignedStaffId'] ?? payload['acceptedByStaffId']) as String?;
@@ -327,7 +352,7 @@ class OperationalRuntimeBridge {
       debugPrint(
         '[OperationalRuntimeBridge] ${event.type.name} targets me ($currentStaffId) or is broadcast. Proceeding.',
       );
-      alertService.playNewOrderAlert();
+      unawaited(alertService.playNewOrderAlert());
       _ref.read(orderAlertNotifierProvider.notifier).enqueueAlert(payload);
     }
   }
@@ -380,11 +405,14 @@ class OperationalRuntimeBridge {
       case 'order_reassigned':
         return RuntimeEventType.orderReassigned;
       case 'ORDER_ACCEPTED':
+      case 'order_accepted':
         return RuntimeEventType.orderAccepted;
       case 'ORDER_PREPARING':
+      case 'order_preparing':
         return RuntimeEventType.orderPreparing;
       case 'ORDER_READY_FOR_PICKUP':
       case 'order_ready_for_pickup':
+      case 'order_ready':
         return RuntimeEventType.orderReadyForPickup;
       default:
         return RuntimeEventType.unknown;
@@ -612,8 +640,8 @@ class OperationalRuntimeBridge {
     }
     // Server authoritative orders overwrite (they are more up-to-date)
     for (final order in serverOrders) {
-      // Only include non-terminal orders
-      if (order.status != OrderStatus.completed && order.status != OrderStatus.cancelled && order.status != OrderStatus.delivered) {
+      // Only exclude truly terminal orders (completed/cancelled)
+      if (order.status != OrderStatus.completed && order.status != OrderStatus.cancelled) {
         mergedMap[order.id] = order;
       } else {
         // Remove terminal orders even if they were in local cache
@@ -628,7 +656,7 @@ class OperationalRuntimeBridge {
 
     // Also update offline cache (server-authoritative only — no local drafts in the sync)
     await repo.syncOrders(serverOrders.where((o) =>
-      o.status != OrderStatus.completed && o.status != OrderStatus.cancelled && o.status != OrderStatus.delivered).toList());
+      o.status != OrderStatus.completed && o.status != OrderStatus.cancelled).toList());
   }
 
   Future<void> _rebuildTablesProjection() async {

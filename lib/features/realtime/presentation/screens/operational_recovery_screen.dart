@@ -64,6 +64,16 @@ class _OperationalRecoveryScreenState extends ConsumerState<OperationalRecoveryS
         } else if (_currentPhase == 4) {
           _currentPhase = 5; // Completed!
           timer.cancel();
+          // Automatically navigate to floor layout / dashboard after 500ms when recovery completes
+          Timer(const Duration(milliseconds: 500), () {
+            if (!mounted) return;
+            ref.read(realtimeStateProvider.notifier).simulateReconnect();
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/dashboard');
+            }
+          });
         }
       });
     });

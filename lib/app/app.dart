@@ -9,7 +9,6 @@ import '../core/runtime/runtime_lifecycle.dart';
 import '../features/alerts/presentation/widgets/non_blocking_alert_overlay.dart';
 import '../core/services/session_service.dart';
 import '../features/auth/presentation/state/auth_notifier.dart';
-import '../features/auth/presentation/state/auth_state.dart';
 
 class OrderlyyApp extends ConsumerStatefulWidget {
   const OrderlyyApp({super.key});
