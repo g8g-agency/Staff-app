@@ -4,47 +4,30 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 
-// ─── Inline entities & providers (self-contained) ────────────────────────────
+// Real data providers
+import '../../../auth/presentation/state/auth_notifier.dart';
+import '../../../orders/presentation/state/orders_projection_provider.dart';
+import '../../../tables/presentation/state/table_grid_notifier.dart';
+import '../../../waiter_calls/presentation/state/waiter_calls_providers.dart';
+import '../../../orders/domain/entities/order.dart';
+import '../../../tables/domain/entities/restaurant_table.dart';
+import '../../../auth/domain/entities/staff_member.dart';
 
-enum ShiftStatus { idle, starting, active, paused, closing, closed, error }
-enum SyncState { fresh, stale, replaying, degraded, unknown }
+// Re-export shift entities for use in this file
+export '../../domain/entities/shift_session.dart' show ShiftStatus;
+import '../../domain/entities/shift_session.dart';
+import '../../../../core/network/sync_state.dart';
 
-class ShiftMetrics {
-  final int activeTableCount;
-  final int completedOrderCount;
-  final int activeOrderCount;
-  final int pendingCallCount;
-  final double slaComplianceRate;
-  final String staffId;
-  final String staffName;
-  final DateTime shiftStartedAt;
-  final ShiftStatus status;
-  final SyncState syncState;
+// ─── Local view models ────────────────────────────────────────────────────────
 
-  const ShiftMetrics({
-    required this.activeTableCount,
-    required this.completedOrderCount,
-    required this.activeOrderCount,
-    required this.pendingCallCount,
-    required this.slaComplianceRate,
-    required this.staffId,
-    required this.staffName,
-    required this.shiftStartedAt,
-    this.status = ShiftStatus.active,
-    this.syncState = SyncState.fresh,
-  });
-
-  Duration get elapsed => DateTime.now().difference(shiftStartedAt);
-}
-
-class WorkloadItem {
+class _WorkloadItem {
   final String tableId;
   final String tableLabel;
   final String orderStatus; // 'preparing' | 'ready' | 'pending_payment'
   final DateTime orderStartedAt;
   final int slaTargetMinutes;
 
-  const WorkloadItem({
+  const _WorkloadItem({
     required this.tableId,
     required this.tableLabel,
     required this.orderStatus,
@@ -62,42 +45,12 @@ class WorkloadItem {
   }
 }
 
-class ColleagueOverload {
+class _ColleagueOverload {
   final String staffId;
   final String name;
   final int activeTableCount;
-  ColleagueOverload({required this.staffId, required this.name, required this.activeTableCount});
+  _ColleagueOverload({required this.staffId, required this.name, required this.activeTableCount});
 }
-
-// ─── Providers ───────────────────────────────────────────────────────────────
-
-final shiftMetricsProvider = StateProvider<ShiftMetrics>((ref) {
-  return ShiftMetrics(
-    staffId: 'waiter_001',
-    staffName: 'Alex Johnson',
-    shiftStartedAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 14)),
-    activeTableCount: 3,
-    completedOrderCount: 14,
-    activeOrderCount: 3,
-    pendingCallCount: 1,
-    slaComplianceRate: 0.87,
-  );
-});
-
-final workloadItemsProvider = Provider<List<WorkloadItem>>((ref) {
-  final now = DateTime.now();
-  return [
-    WorkloadItem(tableId: '5', tableLabel: 'Table 5', orderStatus: 'preparing', orderStartedAt: now.subtract(const Duration(minutes: 12))),
-    WorkloadItem(tableId: '9', tableLabel: 'Table 9', orderStatus: 'ready', orderStartedAt: now.subtract(const Duration(minutes: 22)), slaTargetMinutes: 20),
-    WorkloadItem(tableId: '12', tableLabel: 'Table 12', orderStatus: 'pending_payment', orderStartedAt: now.subtract(const Duration(minutes: 6))),
-  ];
-});
-
-final colleagueOverloadsProvider = Provider<List<ColleagueOverload>>((ref) {
-  return [
-    ColleagueOverload(staffId: 's2', name: 'Maria K.', activeTableCount: 7),
-  ];
-});
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
@@ -124,24 +77,162 @@ class _ShiftDashboardScreenState extends ConsumerState<ShiftDashboardScreen>
     super.dispose();
   }
 
+  // ── Derived workload from real orders + tables ────────────────────────────
+
+  List<_WorkloadItem> _buildWorkload(
+    List<Order> orders,
+    List<RestaurantTable> tables,
+    String? myStaffId,
+  ) {
+    // Map tableId -> label from the real tables list
+    final tableLabels = {for (final t in tables) t.id: t.label};
+
+    // Filter orders that are active (preparing / ready / pending payment)
+    // and optionally assigned to the current waiter
+    final activeStatuses = {
+      OrderStatus.preparing,
+      OrderStatus.ready,
+      OrderStatus.sent,
+    };
+
+    return orders
+        .where((o) => activeStatuses.contains(o.status))
+        .map((o) {
+          final label = tableLabels[o.tableId] ?? 'Table ${o.tableId.substring(0, 6)}';
+          final String orderStatus;
+          if (o.status == OrderStatus.preparing || o.status == OrderStatus.sent) {
+            orderStatus = 'preparing';
+          } else if (o.status == OrderStatus.ready) {
+            // Check if payment was requested
+            orderStatus = o.isPaymentRequested ? 'pending_payment' : 'ready';
+          } else {
+            orderStatus = 'preparing';
+          }
+          return _WorkloadItem(
+            tableId: o.tableId,
+            tableLabel: label,
+            orderStatus: orderStatus,
+            orderStartedAt: o.createdAt,
+          );
+        })
+        .toList();
+  }
+
+  // ── Colleague overload detection ──────────────────────────────────────────
+
+  List<_ColleagueOverload> _buildColleagueOverloads(
+    List<StaffMember> allStaff,
+    List<Order> orders,
+    List<RestaurantTable> tables,
+    String? myStaffId,
+  ) {
+    // Count occupied tables per waiter by looking at waiterName on active orders
+    final Map<String, int> tableCountByStaff = {};
+    final Map<String, String> staffNameById = {};
+    for (final s in allStaff) {
+      staffNameById[s.id] = s.name;
+    }
+
+    // Count unique table IDs per waiter name
+    final activeStatuses = {
+      OrderStatus.preparing,
+      OrderStatus.ready,
+      OrderStatus.sent,
+    };
+    final Map<String, Set<String>> tablesByWaiterName = {};
+    for (final o in orders) {
+      if (activeStatuses.contains(o.status) && o.waiterName.isNotEmpty) {
+        tablesByWaiterName.putIfAbsent(o.waiterName, () => {}).add(o.tableId);
+      }
+    }
+
+    // Look for staff with 5+ active tables (overloaded), who are not me
+    const overloadThreshold = 5;
+    final result = <_ColleagueOverload>[];
+    for (final entry in tablesByWaiterName.entries) {
+      final name = entry.key;
+      final count = entry.value.length;
+      if (count >= overloadThreshold) {
+        // Find staff member by name (best effort)
+        final staffEntry = allStaff
+            .where((s) => s.name == name || '${s.firstName} ${s.lastName}'.trim() == name)
+            .firstOrNull;
+        final sid = staffEntry?.id ?? name;
+        if (sid != myStaffId) {
+          result.add(_ColleagueOverload(staffId: sid, name: name, activeTableCount: count));
+        }
+      }
+    }
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final metrics = ref.watch(shiftMetricsProvider);
-    final workload = ref.watch(workloadItemsProvider);
-    final overloads = ref.watch(colleagueOverloadsProvider);
+    final authState = ref.watch(authNotifierProvider);
+    final staff = authState.loggedInStaff;
+    final shiftStartTime = authState.shiftStartTime;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Real data
+    final ordersAsync = ref.watch(ordersProjectionProvider);
+    final tablesAsync = ref.watch(tableGridNotifierProvider);
+    final waiterCallsAsync = ref.watch(activeWaiterCallsProvider);
+    final allStaff = ref.watch(authNotifierProvider.notifier).mockStaff;
+
+    final orders = ordersAsync; // List<Order>
+    final tables = tablesAsync.maybeWhen(
+      data: (state) => state.tables,
+      orElse: () => <RestaurantTable>[],
+    );
+
+    // Shift elapsed time
+    final shiftStart = shiftStartTime ?? DateTime.now();
+    final elapsed = DateTime.now().difference(shiftStart);
+    final h = elapsed.inHours.toString().padLeft(2, '0');
+    final m = (elapsed.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
+
+    // Derive metrics
+    final workload = _buildWorkload(orders, tables, staff?.id);
+    final overloads = _buildColleagueOverloads(allStaff, orders, tables, staff?.id);
+    final activeTableCount = tables.where((t) => t.status == TableStatus.occupied).length;
+    final completedOrderCount = orders.where((o) => o.status == OrderStatus.completed || o.status == OrderStatus.delivered).length;
+    final activeOrderCount = workload.length;
+    final pendingCallCount = waiterCallsAsync.length;
+
+    // SLA: percentage of non-breached active workload items
+    final slaCompliance = workload.isEmpty
+        ? 1.0
+        : workload.where((w) => !w.isSlaBreached).length / workload.length;
+
+    final staffName = staff?.name.isNotEmpty == true
+        ? staff!.name
+        : (staff?.firstName.isNotEmpty == true ? '${staff!.firstName} ${staff.lastName}'.trim() : 'Staff');
+
+    final shiftStatus = authState.isShiftStarted ? ShiftStatus.active : ShiftStatus.idle;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
       body: CustomScrollView(
         slivers: [
-          _buildSliverHeader(context, metrics, isDark),
-          SliverToBoxAdapter(child: _buildMetricsRow(context, metrics, isDark)),
+          _buildSliverHeader(context, staffName, shiftStatus, h, m, s, isDark),
+          SliverToBoxAdapter(
+            child: _buildMetricsRow(
+              context,
+              activeTableCount: activeTableCount,
+              completedOrderCount: completedOrderCount,
+              activeOrderCount: activeOrderCount,
+              pendingCallCount: pendingCallCount,
+              isDark: isDark,
+            ),
+          ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-              child: Text('My Active Workload',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              child: Text(
+                'My Active Workload',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
             ),
           ),
           workload.isEmpty
@@ -155,22 +246,29 @@ class _ShiftDashboardScreenState extends ConsumerState<ShiftDashboardScreen>
                     childCount: workload.length,
                   ),
                 ),
-          SliverToBoxAdapter(child: _buildBranchAwareness(context, overloads, metrics, isDark)),
-          SliverToBoxAdapter(child: _buildProgressBar(context, metrics, isDark)),
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          SliverToBoxAdapter(
+            child: _buildBranchAwareness(context, overloads, isDark),
+          ),
+          SliverToBoxAdapter(
+            child: _buildProgressBar(context, slaCompliance, completedOrderCount, isDark),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 32)),
         ],
       ),
     );
   }
 
-  Widget _buildSliverHeader(BuildContext context, ShiftMetrics metrics, bool isDark) {
-    final elapsed = metrics.elapsed;
-    final h = elapsed.inHours.toString().padLeft(2, '0');
-    final m = (elapsed.inMinutes % 60).toString().padLeft(2, '0');
-    final s = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
-
+  Widget _buildSliverHeader(
+    BuildContext context,
+    String staffName,
+    ShiftStatus status,
+    String h,
+    String m,
+    String s,
+    bool isDark,
+  ) {
     return SliverAppBar(
-      expandedHeight: 140,
+      expandedHeight: 148,
       pinned: true,
       backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
       elevation: 0,
@@ -195,15 +293,25 @@ class _ShiftDashboardScreenState extends ConsumerState<ShiftDashboardScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Shift Dashboard', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 2),
-                          Text(metrics.staffName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-                        ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Shift Dashboard',
+                              style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              staffName,
+                              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
-                      _ShiftStatusBadge(status: metrics.status),
+                      const SizedBox(width: 8),
+                      _ShiftStatusBadge(status: status),
                     ],
                   ),
                   const Spacer(),
@@ -211,7 +319,16 @@ class _ShiftDashboardScreenState extends ConsumerState<ShiftDashboardScreen>
                     children: [
                       const Icon(Icons.timer_rounded, color: Colors.white70, size: 18),
                       const SizedBox(width: 6),
-                      Text('$h:$m:$s', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 1.5, fontFeatures: [FontFeature.tabularFigures()])),
+                      Text(
+                        '$h:$m:$s',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.5,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -220,27 +337,54 @@ class _ShiftDashboardScreenState extends ConsumerState<ShiftDashboardScreen>
           ),
         ),
       ),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: _SyncIndicator(state: metrics.syncState),
-        ),
-      ],
     );
   }
 
-  Widget _buildMetricsRow(BuildContext context, ShiftMetrics metrics, bool isDark) {
-    return SizedBox(
-      height: 90,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        children: [
-          _MetricChip(icon: Icons.table_restaurant_rounded, label: 'Tables', value: '${metrics.activeTableCount}', color: AppColors.primary),
-          _MetricChip(icon: Icons.check_circle_rounded, label: 'Completed', value: '${metrics.completedOrderCount}', color: AppColors.success),
-          _MetricChip(icon: Icons.receipt_long_rounded, label: 'Active Orders', value: '${metrics.activeOrderCount}', color: AppColors.secondary, pulse: metrics.activeOrderCount > 0),
-          _MetricChip(icon: Icons.support_agent_rounded, label: 'Pending Calls', value: '${metrics.pendingCallCount}', color: metrics.pendingCallCount > 0 ? AppColors.error : AppColors.success, pulse: metrics.pendingCallCount > 0),
-        ],
+  Widget _buildMetricsRow(
+    BuildContext context, {
+    required int activeTableCount,
+    required int completedOrderCount,
+    required int activeOrderCount,
+    required int pendingCallCount,
+    required bool isDark,
+  }) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            _MetricChip(
+              icon: Icons.table_restaurant_rounded,
+              label: 'Tables',
+              value: '$activeTableCount',
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 10),
+            _MetricChip(
+              icon: Icons.check_circle_rounded,
+              label: 'Completed',
+              value: '$completedOrderCount',
+              color: AppColors.success,
+            ),
+            const SizedBox(width: 10),
+            _MetricChip(
+              icon: Icons.receipt_long_rounded,
+              label: 'Active Orders',
+              value: '$activeOrderCount',
+              color: AppColors.secondary,
+              pulse: activeOrderCount > 0,
+            ),
+            const SizedBox(width: 10),
+            _MetricChip(
+              icon: Icons.support_agent_rounded,
+              label: 'Pending Calls',
+              value: '$pendingCallCount',
+              color: pendingCallCount > 0 ? AppColors.error : AppColors.success,
+              pulse: pendingCallCount > 0,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -260,7 +404,7 @@ class _ShiftDashboardScreenState extends ConsumerState<ShiftDashboardScreen>
     );
   }
 
-  Widget _buildBranchAwareness(BuildContext context, List<ColleagueOverload> overloads, ShiftMetrics metrics, bool isDark) {
+  Widget _buildBranchAwareness(BuildContext context, List<_ColleagueOverload> overloads, bool isDark) {
     if (overloads.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -277,23 +421,29 @@ class _ShiftDashboardScreenState extends ConsumerState<ShiftDashboardScreen>
             const Row(children: [
               Icon(Icons.groups_rounded, size: 18, color: AppColors.warning),
               SizedBox(width: 8),
-              Text('Colleague Overload Alert', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.warning)),
+              Text('Colleague Overload Alert',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.warning)),
             ]),
             const SizedBox(height: 10),
             ...overloads.map((o) => Row(children: [
-              const Icon(Icons.person_rounded, size: 16, color: AppColors.warning),
-              const SizedBox(width: 6),
-              Text('${o.name} — ${o.activeTableCount} active tables', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              _buildHelperButton(context, o),
-            ])),
+                  const Icon(Icons.person_rounded, size: 16, color: AppColors.warning),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '${o.name} — ${o.activeTableCount} active tables',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  _buildHelperButton(context, o),
+                ])),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHelperButton(BuildContext context, ColleagueOverload o) {
+  Widget _buildHelperButton(BuildContext context, _ColleagueOverload o) {
     return TextButton(
       onPressed: () {
         HapticFeedback.lightImpact();
@@ -305,8 +455,7 @@ class _ShiftDashboardScreenState extends ConsumerState<ShiftDashboardScreen>
     );
   }
 
-  Widget _buildProgressBar(BuildContext context, ShiftMetrics metrics, bool isDark) {
-    final sla = metrics.slaComplianceRate;
+  Widget _buildProgressBar(BuildContext context, double sla, int completedOrderCount, bool isDark) {
     final slaColor = sla >= 0.9 ? AppColors.success : sla >= 0.7 ? AppColors.warning : AppColors.error;
 
     return Padding(
@@ -325,7 +474,10 @@ class _ShiftDashboardScreenState extends ConsumerState<ShiftDashboardScreen>
             const SizedBox(height: 12),
             Row(
               children: [
-                Text('${(sla * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: slaColor)),
+                Text(
+                  '${(sla * 100).toStringAsFixed(0)}%',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: slaColor),
+                ),
                 const SizedBox(width: 8),
                 Text('compliance', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
               ],
@@ -341,7 +493,10 @@ class _ShiftDashboardScreenState extends ConsumerState<ShiftDashboardScreen>
               ),
             ),
             const SizedBox(height: 8),
-            Text('${metrics.completedOrderCount} orders completed this shift', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+            Text(
+              '$completedOrderCount orders completed this shift',
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+            ),
           ],
         ),
       ),
@@ -370,32 +525,10 @@ class _ShiftStatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
       ),
-      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1)),
-    );
-  }
-}
-
-class _SyncIndicator extends StatelessWidget {
-  final SyncState state;
-  const _SyncIndicator({required this.state});
-
-  @override
-  Widget build(BuildContext context) {
-    if (state == SyncState.fresh) return const SizedBox.shrink();
-    final (label, color) = switch (state) {
-      SyncState.stale => ('Stale', AppColors.warning),
-      SyncState.replaying => ('Syncing', AppColors.primary),
-      SyncState.degraded => ('Offline', AppColors.error),
-      _ => ('...', Colors.grey),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
+      child: Text(
+        label,
+        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1),
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800)),
     );
   }
 }
@@ -406,27 +539,33 @@ class _MetricChip extends StatelessWidget {
   final String value;
   final Color color;
   final bool pulse;
-  const _MetricChip({required this.icon, required this.label, required this.value, required this.color, this.pulse = false});
+  const _MetricChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    this.pulse = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      width: 110,
-      margin: const EdgeInsets.only(right: 10),
+      width: 112,
       decoration: BoxDecoration(
         color: color.withValues(alpha: isDark ? 0.12 : 0.08),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, color: color, size: 18),
           const SizedBox(height: 6),
           Text(value, style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 2),
           Text(label, style: TextStyle(color: color.withValues(alpha: 0.7), fontSize: 10, fontWeight: FontWeight.w600)),
         ],
       ),
@@ -435,7 +574,7 @@ class _MetricChip extends StatelessWidget {
 }
 
 class _WorkloadCard extends StatelessWidget {
-  final WorkloadItem item;
+  final _WorkloadItem item;
   const _WorkloadCard({required this.item});
 
   @override
@@ -465,8 +604,14 @@ class _WorkloadCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: item.isSlaBreached ? AppColors.error.withValues(alpha: 0.5) : (isDark ? AppColors.darkBorder : AppColors.lightBorder)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        border: Border.all(
+          color: item.isSlaBreached
+              ? AppColors.error.withValues(alpha: 0.5)
+              : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+        ),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -476,24 +621,35 @@ class _WorkloadCard extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 child: const Icon(Icons.table_restaurant_rounded, color: AppColors.primary, size: 18),
               ),
               const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.tableLabel, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                  const SizedBox(height: 2),
-                  Row(children: [
-                    Icon(statusIcon, size: 13, color: statusColor),
-                    const SizedBox(width: 4),
-                    Text(statusLabel, style: TextStyle(fontSize: 12, color: statusColor, fontWeight: FontWeight.w600)),
-                  ]),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.tableLabel,
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                        overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 2),
+                    Row(children: [
+                      Icon(statusIcon, size: 13, color: statusColor),
+                      const SizedBox(width: 4),
+                      Text(statusLabel,
+                          style: TextStyle(fontSize: 12, color: statusColor, fontWeight: FontWeight.w600)),
+                    ]),
+                  ],
+                ),
               ),
-              const Spacer(),
-              Text('${item.elapsedMinutes}m', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: slaColor)),
+              const SizedBox(width: 8),
+              Text(
+                '${item.elapsedMinutes}m',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: slaColor),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -508,8 +664,10 @@ class _WorkloadCard extends StatelessWidget {
           ),
           if (item.isSlaBreached) ...[
             const SizedBox(height: 6),
-            Text('SLA breached — ${item.elapsedMinutes - item.slaTargetMinutes}m over target',
-                style: const TextStyle(color: AppColors.error, fontSize: 11, fontWeight: FontWeight.w700)),
+            Text(
+              'SLA breached — ${item.elapsedMinutes - item.slaTargetMinutes}m over target',
+              style: const TextStyle(color: AppColors.error, fontSize: 11, fontWeight: FontWeight.w700),
+            ),
           ],
         ],
       ),

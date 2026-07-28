@@ -15,7 +15,7 @@ final orderAlertServiceProvider = Provider<OrderAlertService>((ref) {
   return service;
 });
 
-final ordersRealtimeProvider = Provider.autoDispose<void>((ref) {
+final ordersRealtimeProvider = Provider<void>((ref) {
   final authState = ref.watch(authNotifierProvider);
   final staff = authState.loggedInStaff;
   final branch = authState.selectedBranch;
@@ -118,10 +118,10 @@ final ordersRealtimeProvider = Provider.autoDispose<void>((ref) {
       alertService.playNewOrderAlert();
       orderAlertNotifier.enqueueAlert(event.payload);
       final orderId = (event.payload['id'] ?? event.payload['orderId'])?.toString() ?? '';
+      // Always refresh projection so table card updates immediately
+      fetchAndUpdate();
       if (orderId.isNotEmpty) {
         enrichAlertFromProjection(orderId);
-      } else {
-        fetchAndUpdate();
       }
     } else if (event.type == RealtimeOrderEventType.update) {
       final status = event.payload['status'];

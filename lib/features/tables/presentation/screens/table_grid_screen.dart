@@ -5,7 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../domain/entities/restaurant_table.dart';
 import '../state/table_grid_notifier.dart';
-import '../../../orders/presentation/state/orders_projection_provider.dart';
 import '../../../orders/domain/entities/order.dart';
 import '../../../orders/providers/orders_providers.dart';
 import '../../../orders/providers/orders_realtime_provider.dart';
@@ -23,10 +22,12 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Keep alert-side realtime provider alive (popup + sound)
     ref.watch(ordersRealtimeProvider);
-    ref.watch(activeOrdersProvider);
+
     final stateAsync = ref.watch(tableGridNotifierProvider);
-    final activeOrders = ref.watch(ordersProjectionProvider);
+    // liveOrdersProvider = StateNotifier with 5s polling + Supabase realtime
+    final activeOrders = ref.watch(liveOrdersProvider).valueOrNull ?? [];
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
@@ -92,7 +93,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                         // Main Grid
                         Consumer(
                           builder: (context, ref, child) {
-                            final activeOrders = ref.watch(ordersProjectionProvider);
+                            final activeOrders = ref.watch(liveOrdersProvider).valueOrNull ?? [];
                             return stateAsync.when(
                               loading: () => const Center(
                                 child: Padding(
@@ -257,21 +258,40 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
   }
 
   String _getTableAmount(RestaurantTable table, List<Order> activeOrders) {
-    debugPrint('[TableGridScreen] _getTableAmount table=${table.label} activeOrdersCount=${activeOrders.length}');
-    for (final o in activeOrders) {
-      if (o.tableId == table.id) {
-        debugPrint('  -> Order: num=${o.id} status=${o.status} price=${o.totalPrice.formatted}');
-      }
-    }
     var totalCents = 0;
     bool hasOrders = false;
     for (final o in activeOrders) {
-      if (o.tableId == table.id && o.status != OrderStatus.completed && o.status != OrderStatus.cancelled && o.status != OrderStatus.delivered) {
+      if (o.tableId == table.id &&
+          o.status != OrderStatus.completed &&
+          o.status != OrderStatus.cancelled &&
+          o.status != OrderStatus.delivered) {
         totalCents += o.totalPrice.amountInCents;
         hasOrders = true;
       }
     }
     return hasOrders ? Money(amountInCents: totalCents).formatted : '₹0.00';
+  }
+
+  /// Returns elapsed time since the first active order for this table,
+  /// e.g. "12m", "1h 05m". Falls back to '-' if no orders.
+  String _getTableElapsed(RestaurantTable table, List<Order> activeOrders) {
+    DateTime? earliest;
+    for (final o in activeOrders) {
+      if (o.tableId == table.id &&
+          o.status != OrderStatus.completed &&
+          o.status != OrderStatus.cancelled &&
+          o.status != OrderStatus.delivered) {
+        if (earliest == null || o.createdAt.isBefore(earliest)) {
+          earliest = o.createdAt;
+        }
+      }
+    }
+    if (earliest == null) return '-';
+    final diff = DateTime.now().difference(earliest);
+    if (diff.inHours >= 1) {
+      return '${diff.inHours}h ${(diff.inMinutes % 60).toString().padLeft(2, '0')}m';
+    }
+    return '${diff.inMinutes}m';
   }
 
   Widget _buildTableCard(RestaurantTable table, bool isDark, List<Order> activeOrders) {
@@ -363,7 +383,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
 
   Widget _buildOccupiedCard(RestaurantTable table, bool isDark, List<Order> activeOrders) {
     final amount = _getTableAmount(table, activeOrders);
-    const time = '45m';
+    final time = _getTableElapsed(table, activeOrders);
     
     return InkWell(
       onTap: () => context.push('/tables/${table.id}'),

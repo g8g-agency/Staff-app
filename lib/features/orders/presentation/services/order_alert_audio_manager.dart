@@ -3,10 +3,12 @@
 // Manages playback of the incoming order alert sound.
 // Plays immediately, repeats every 5 seconds, stops on accept/pass/expire.
 // Max 30 seconds of sound (6 repetitions) to avoid infinite loops.
+// Also drives continuous vibration pattern in sync with each sound burst.
 
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 class OrderAlertAudioManager {
   static final OrderAlertAudioManager _instance =
@@ -16,6 +18,7 @@ class OrderAlertAudioManager {
 
   AudioPlayer? _player;
   Timer? _repeatTimer;
+  Timer? _vibrateTimer;
   bool _isPlaying = false;
   int _playCount = 0;
   double _volume = 1.0; // 0.0 – 1.0
@@ -30,6 +33,7 @@ class OrderAlertAudioManager {
   }
 
   /// Start playing the alert sound immediately and repeat every 5 seconds.
+  /// Also fires a strong vibration burst in sync with each sound repetition.
   Future<void> startAlert() async {
     if (_isPlaying) return; // Already playing
     _isPlaying = true;
@@ -37,6 +41,7 @@ class OrderAlertAudioManager {
 
     _player = AudioPlayer();
     await _playSound();
+    _vibrateAlertBurst(); // Immediate vibration on first alert
 
     _repeatTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       if (_playCount >= _maxPlays) {
@@ -44,6 +49,23 @@ class OrderAlertAudioManager {
         return;
       }
       await _playSound();
+      _vibrateAlertBurst(); // Vibrate in sync with each sound repeat
+    });
+  }
+
+  /// Fires a pattern: 3 × heavy impacts spaced 120ms apart.
+  /// Runs asynchronously so it doesn't block audio playback.
+  void _vibrateAlertBurst() {
+    _vibrateTimer?.cancel();
+    int _count = 0;
+    _vibrateTimer = Timer.periodic(const Duration(milliseconds: 150), (t) {
+      if (_count >= 3 || !_isPlaying) {
+        t.cancel();
+        _vibrateTimer = null;
+        return;
+      }
+      HapticFeedback.heavyImpact();
+      _count++;
     });
   }
 
@@ -61,18 +83,20 @@ class OrderAlertAudioManager {
     }
   }
 
-  /// Stop and clean up.
+  /// Stop sound and vibration, clean up all resources.
   Future<void> stopAlert() async {
     _isPlaying = false;
     _repeatTimer?.cancel();
     _repeatTimer = null;
+    _vibrateTimer?.cancel();
+    _vibrateTimer = null;
     try {
       await _player?.stop();
       await _player?.dispose();
     } catch (_) {}
     _player = null;
     _playCount = 0;
-    debugPrint('[OrderAlertAudio] Alert sound stopped.');
+    debugPrint('[OrderAlertAudio] Alert sound + vibration stopped.');
   }
 
   /// Play a distinct sound for when an order is ready for pickup.
