@@ -91,13 +91,10 @@ class DeveloperSettingsScreen extends ConsumerWidget {
                       ),
                       Switch.adaptive(
                         value: isDeveloperModeEnabled,
-                        activeColor: AppColors.primary,
-                        onChanged: (value) async {
+                        activeTrackColor: AppColors.primary,
+                        onChanged: (value) {
                           HapticFeedback.mediumImpact();
                           if (staff != null) {
-                            // Call provider to update the staff record in DB.
-                            // Assuming an update function exists, we mock it for now.
-                            // In a real implementation this sends an API request/Supabase update.
                             final updatedStaff = staff.copyWith(
                               developerModeEnabled: value,
                             );

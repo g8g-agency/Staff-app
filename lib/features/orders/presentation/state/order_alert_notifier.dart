@@ -279,14 +279,6 @@ class OrderAlertNotifier extends StateNotifier<OrderAlertState> {
 
   // ── Internal ────────────────────────────────────────────────────────────────
 
-  void _startTimeoutTimer(IncomingOrderAlert alert) {
-    _timeoutTimers[alert.orderId]?.cancel();
-    _timeoutTimers[alert.orderId] = Timer(_alertTimeout, () {
-      debugPrint('[OrderAlert] Alert timeout for order ${alert.orderId}');
-      expireAlert(alert.orderId);
-    });
-  }
-
   void _cancelTimeoutTimer(String orderId) {
     _timeoutTimers[orderId]?.cancel();
     _timeoutTimers.remove(orderId);

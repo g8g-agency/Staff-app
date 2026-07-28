@@ -1,5 +1,6 @@
 // lib/features/orders/presentation/state/active_order_notifier.dart
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../core/utils/uuid.dart';
 import '../../../tables/domain/entities/restaurant_table.dart';
@@ -31,9 +32,9 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
       final tableOrders = orders
           .where((o) => o.tableId == tableId && o.status != OrderStatus.completed && o.status != OrderStatus.cancelled && o.status != OrderStatus.delivered)
           .toList();
-      print('[ActiveOrderNotifier] watchActiveOrders: tableId=$tableId count=${tableOrders.length}');
+      debugPrint('[ActiveOrderNotifier] watchActiveOrders: tableId=$tableId count=${tableOrders.length}');
       for (final o in tableOrders) {
-        print('  -> Order num=${o.id} status=${o.status} itemsCount=${o.items.length} totalPrice=${o.totalPrice.formatted}');
+        debugPrint('  -> Order num=${o.id} status=${o.status} itemsCount=${o.items.length} totalPrice=${o.totalPrice.formatted}');
       }
       if (tableOrders.isEmpty) {
         state = const AsyncData(null);
@@ -69,9 +70,9 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
     final tableOrders = initialOrders
         .where((o) => o.tableId == tableId && o.status != OrderStatus.completed && o.status != OrderStatus.cancelled && o.status != OrderStatus.delivered)
         .toList();
-    print('[ActiveOrderNotifier] Initial load: tableId=$tableId count=${tableOrders.length}');
+    debugPrint('[ActiveOrderNotifier] Initial load: tableId=$tableId count=${tableOrders.length}');
     for (final o in tableOrders) {
-      print('  -> Order num=${o.id} status=${o.status} itemsCount=${o.items.length} totalPrice=${o.totalPrice.formatted}');
+      debugPrint('  -> Order num=${o.id} status=${o.status} itemsCount=${o.items.length} totalPrice=${o.totalPrice.formatted}');
     }
     if (tableOrders.isEmpty) return null;
 

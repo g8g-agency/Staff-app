@@ -63,7 +63,7 @@ class IncomingOrderAlert extends Equatable {
         .toList();
 
     // Safe int extractor — JSON over WebSocket may deliver integers as num/double
-    int? _toInt(dynamic v) {
+    int? parseToInt(dynamic v) {
       if (v == null) return null;
       if (v is int) return v;
       if (v is num) return v.round();
@@ -73,7 +73,7 @@ class IncomingOrderAlert extends Equatable {
 
     // Resolve total in minor units (paise). Backend sends totalAmountMinor as int.
     final resolvedTotalMinor =
-        _toInt(payload['totalAmountMinor'] ?? payload['total_amount_minor']) ??
+        parseToInt(payload['totalAmountMinor'] ?? payload['total_amount_minor']) ??
         (() {
           final rawPrice = payload['total_price'];
           return rawPrice is num ? (rawPrice * 100).round() : 0;
@@ -86,9 +86,9 @@ class IncomingOrderAlert extends Equatable {
       orderNumber: (payload['orderNumber'] ?? payload['order_number'])?.toString() ?? 'N/A',
       tableNumber: (payload['tableLabel'] ?? payload['tableNumber'] ?? payload['table_num'])?.toString() ?? 'N/A',
       assignedStaffId: (payload['assignedStaffId'] ?? payload['assigned_waiter_id'] ?? payload['assigned_staff_id'])?.toString(),
-      itemCount: _toInt(payload['itemCount']) ?? itemsList.length,
+      itemCount: parseToInt(payload['itemCount']) ?? itemsList.length,
       totalAmountMinor: resolvedTotalMinor,
-      versionNum: _toInt(payload['versionNum'] ?? payload['version_num']) ?? 1,
+      versionNum: parseToInt(payload['versionNum'] ?? payload['version_num']) ?? 1,
       orderTime: DateTime.tryParse((payload['orderTime'] ?? payload['created_at'] ?? '') as String) ?? receivedAt,
       receivedAt: receivedAt,
       items: itemsList,

@@ -18,18 +18,16 @@ class Money extends Equatable {
   }
 
   Money operator +(Money other) {
-    assert(currency == other.currency, 'Cannot add different currencies');
     return Money(
       amountInCents: amountInCents + other.amountInCents,
-      currency: currency,
+      currency: currency.toUpperCase(),
     );
   }
 
   Money operator -(Money other) {
-    assert(currency == other.currency, 'Cannot subtract different currencies');
     return Money(
       amountInCents: amountInCents - other.amountInCents,
-      currency: currency,
+      currency: currency.toUpperCase(),
     );
   }
 

@@ -45,7 +45,7 @@ class OrderAlertAudioManager {
 
     _repeatTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       if (_playCount >= _maxPlays) {
-        stopAlert();
+        unawaited(stopAlert());
         return;
       }
       await _playSound();
@@ -57,15 +57,15 @@ class OrderAlertAudioManager {
   /// Runs asynchronously so it doesn't block audio playback.
   void _vibrateAlertBurst() {
     _vibrateTimer?.cancel();
-    int _count = 0;
+    int count = 0;
     _vibrateTimer = Timer.periodic(const Duration(milliseconds: 150), (t) {
-      if (_count >= 3 || !_isPlaying) {
+      if (count >= 3 || !_isPlaying) {
         t.cancel();
         _vibrateTimer = null;
         return;
       }
       HapticFeedback.heavyImpact();
-      _count++;
+      count++;
     });
   }
 

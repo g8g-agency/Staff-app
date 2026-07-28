@@ -154,14 +154,12 @@ class OrdersRepositoryImpl implements OrdersRepository {
                 .eq('session_id', sessionId)
                 .or('status.eq.open,status.eq.locked');
             
-            if (oldCartsRes != null) {
-              final oldCartList = List<Map<String, dynamic>>.from(oldCartsRes);
+            final oldCartList = List<Map<String, dynamic>>.from(oldCartsRes);
               for (final c in oldCartList) {
                 final oldCartId = c['id'] as String;
                 await Supabase.instance.client.from('cart_items').delete().eq('cart_id', oldCartId);
                 await Supabase.instance.client.from('carts').delete().eq('id', oldCartId);
               }
-            }
 
             // 3. Insert cart
             await Supabase.instance.client.from('carts').insert({

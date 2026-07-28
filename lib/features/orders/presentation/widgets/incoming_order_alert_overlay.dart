@@ -224,11 +224,6 @@ class _IncomingOrderAlertOverlayState
     super.dispose();
   }
 
-  void _onExpired() {
-    ref.read(orderAlertNotifierProvider.notifier).expireAlert(widget.orderId);
-    widget.onExpired();
-  }
-
   Future<void> _onAccept(IncomingOrderAlert alert) async {
     if (_isAccepting) return;
     HapticFeedback.heavyImpact();

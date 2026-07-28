@@ -16,7 +16,6 @@ import '../../../auth/domain/entities/staff_member.dart';
 // Re-export shift entities for use in this file
 export '../../domain/entities/shift_session.dart' show ShiftStatus;
 import '../../domain/entities/shift_session.dart';
-import '../../../../core/network/sync_state.dart';
 
 // ─── Local view models ────────────────────────────────────────────────────────
 
@@ -126,8 +125,6 @@ class _ShiftDashboardScreenState extends ConsumerState<ShiftDashboardScreen>
     List<RestaurantTable> tables,
     String? myStaffId,
   ) {
-    // Count occupied tables per waiter by looking at waiterName on active orders
-    final Map<String, int> tableCountByStaff = {};
     final Map<String, String> staffNameById = {};
     for (final s in allStaff) {
       staffNameById[s.id] = s.name;

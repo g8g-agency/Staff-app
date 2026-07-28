@@ -13,6 +13,7 @@
 //   → KitchenRuntimeCoordinator → KitchenProjectionRebuildEngine
 //     → KitchenTicketProjectionNotifier (reactive UI layer)
 //
+import 'dart:async';
 // Presence events additionally flow through:
 //   → PresenceGovernanceRuntime → PresenceHeartbeatManager
 //     → PresenceProjectionNotifier (reactive UI layer)
@@ -44,7 +45,6 @@ import '../../features/kitchen/presentation/state/kitchen_runtime_providers.dart
 import '../../features/staff/presentation/state/staff_presence_governance_providers.dart';
 // Order alerts
 import '../../features/orders/presentation/state/order_alert_notifier.dart';
-import '../../features/orders/presentation/state/orders_projection_provider.dart';
 import '../../features/manager/presentation/state/manager_providers.dart';
 
 // ━━━━━━━━━━━━━━━━━━━━━━ BRIDGE ━━━━━━━━━━━━━━━━━━━━━━
@@ -313,7 +313,7 @@ class OperationalRuntimeBridge {
       debugPrint(
         '[OperationalRuntimeBridge] ORDER_READY_FOR_PICKUP for order $orderId — showing popup.',
       );
-      alertService.playOrderReadyAlert();
+      unawaited(alertService.playOrderReadyAlert());
       _ref.read(orderAlertNotifierProvider.notifier).enqueueReadyAlert(payload);
     } else {
       // ORDER_ASSIGNED and other alerts — use assignedStaffId targeting
@@ -327,7 +327,7 @@ class OperationalRuntimeBridge {
       debugPrint(
         '[OperationalRuntimeBridge] ${event.type.name} targets me ($currentStaffId) or is broadcast. Proceeding.',
       );
-      alertService.playNewOrderAlert();
+      unawaited(alertService.playNewOrderAlert());
       _ref.read(orderAlertNotifierProvider.notifier).enqueueAlert(payload);
     }
   }

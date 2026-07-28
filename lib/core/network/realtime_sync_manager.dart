@@ -148,6 +148,16 @@ class RealtimeSyncManager {
         return;
       }
 
+      // Deduplicate events by idempotency key
+      if (_processedKeys.contains(key)) {
+        debugPrint('[SYNC] Duplicate event key ignored: $key');
+        return;
+      }
+      _processedKeys.add(key);
+      if (_processedKeys.length > 500) {
+        _processedKeys.remove(_processedKeys.first);
+      }
+
       _eventController.add(
         SyncEvent(
           idempotencyKey: key,

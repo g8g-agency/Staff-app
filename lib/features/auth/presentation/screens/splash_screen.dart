@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../state/auth_notifier.dart';
+import '../../../../core/storage/device_context_store.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -99,10 +100,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
 
   void _navigateNext() {
     final authState = ref.read(authNotifierProvider);
-    if (authState.selectedOrg == null) {
+    final deviceStore = ref.read(deviceContextStoreProvider);
+
+    if (!deviceStore.hasContext || authState.selectedBranch == null) {
       context.go('/welcome');
-    } else if (authState.selectedBranch == null) {
-      context.go('/branch-select');
     } else if (authState.loggedInStaff == null) {
       context.go('/login');
     } else if (!authState.isShiftStarted) {

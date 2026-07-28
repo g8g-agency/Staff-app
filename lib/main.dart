@@ -1,5 +1,5 @@
 // lib/main.dart
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'bootstrap/bootstrap.dart';
 import 'core/config/environment.dart';
 

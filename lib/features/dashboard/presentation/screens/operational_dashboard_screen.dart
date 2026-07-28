@@ -7,7 +7,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../auth/presentation/state/auth_notifier.dart';
 import '../../../tables/presentation/state/table_grid_notifier.dart';
-import '../../../kitchen/presentation/state/kitchen_runtime_providers.dart';
 import '../../../tables/domain/entities/restaurant_table.dart';
 import '../../../auth/domain/entities/branch.dart';
 import '../../../realtime/presentation/widgets/diagnostics/degraded_mode_coordinator_widget.dart';
@@ -165,7 +164,7 @@ class _OperationalDashboardScreenState
             ),
             onPressed: () {
               ref.read(authNotifierProvider.notifier).logout();
-              context.go('/org-select');
+              context.go('/welcome');
             },
           ),
           const SizedBox(width: 8),

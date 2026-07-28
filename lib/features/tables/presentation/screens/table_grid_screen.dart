@@ -26,8 +26,6 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
     ref.watch(ordersRealtimeProvider);
 
     final stateAsync = ref.watch(tableGridNotifierProvider);
-    // liveOrdersProvider = StateNotifier with 5s polling + Supabase realtime
-    final activeOrders = ref.watch(liveOrdersProvider).valueOrNull ?? [];
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
