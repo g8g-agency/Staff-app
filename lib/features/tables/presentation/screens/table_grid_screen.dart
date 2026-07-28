@@ -8,6 +8,8 @@ import '../state/table_grid_notifier.dart';
 import '../../../orders/domain/entities/order.dart';
 import '../../../orders/providers/orders_providers.dart';
 import '../../../orders/providers/orders_realtime_provider.dart';
+import '../../../orders/presentation/state/orders_projection_provider.dart';
+import '../../../auth/presentation/state/auth_notifier.dart';
 import '../../../../shared/models/money.dart';
 
 class TableGridScreen extends ConsumerStatefulWidget {
@@ -91,7 +93,14 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                         // Main Grid
                         Consumer(
                           builder: (context, ref, child) {
-                            final activeOrders = ref.watch(liveOrdersProvider).valueOrNull ?? [];
+                            final liveOrders = ref.watch(liveOrdersProvider).valueOrNull ?? [];
+                            final projectedOrders = ref.watch(ordersProjectionProvider);
+                            // Combine active orders from both live provider and projection store for real-time reactivity
+                            final ordersMap = <String, Order>{};
+                            for (final o in liveOrders) { ordersMap[o.id] = o; }
+                            for (final o in projectedOrders) { ordersMap[o.id] = o; }
+                            final activeOrders = ordersMap.values.toList();
+
                             return stateAsync.when(
                               loading: () => const Center(
                                 child: Padding(
@@ -255,14 +264,29 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
     );
   }
 
+  bool _isOrderForTable(Order o, RestaurantTable table) {
+    if (o.status == OrderStatus.completed || o.status == OrderStatus.cancelled) {
+      return false;
+    }
+    final tid = o.tableId.trim();
+    if (tid.isEmpty && table.activeOrderId != o.id) return false;
+
+    if (tid == table.id || tid == table.label || table.activeOrderId == o.id) return true;
+
+    // Direct label comparison e.g. "Table 4" vs "Table 4" or "4"
+    final cleanTableLabel = table.label.toLowerCase().replaceAll('table', '').trim();
+    final cleanOrderTable = tid.toLowerCase().replaceAll('table', '').trim();
+    if (cleanTableLabel.isNotEmpty && cleanTableLabel == cleanOrderTable) return true;
+
+    return false;
+  }
+
+  /// Calculates total monetary amount for active orders at this table.
   String _getTableAmount(RestaurantTable table, List<Order> activeOrders) {
-    var totalCents = 0;
+    int totalCents = 0;
     bool hasOrders = false;
     for (final o in activeOrders) {
-      if (o.tableId == table.id &&
-          o.status != OrderStatus.completed &&
-          o.status != OrderStatus.cancelled &&
-          o.status != OrderStatus.delivered) {
+      if (_isOrderForTable(o, table)) {
         totalCents += o.totalPrice.amountInCents;
         hasOrders = true;
       }
@@ -275,10 +299,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
   String _getTableElapsed(RestaurantTable table, List<Order> activeOrders) {
     DateTime? earliest;
     for (final o in activeOrders) {
-      if (o.tableId == table.id &&
-          o.status != OrderStatus.completed &&
-          o.status != OrderStatus.cancelled &&
-          o.status != OrderStatus.delivered) {
+      if (_isOrderForTable(o, table)) {
         if (earliest == null || o.createdAt.isBefore(earliest)) {
           earliest = o.createdAt;
         }
@@ -296,11 +317,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
     final status = table.status;
     
     // Check if the table has any active order currently in the projection
-    final hasActiveOrder = activeOrders.any((o) =>
-        o.tableId == table.id &&
-        o.status != OrderStatus.completed &&
-        o.status != OrderStatus.cancelled &&
-        o.status != OrderStatus.delivered);
+    final hasActiveOrder = activeOrders.any((o) => _isOrderForTable(o, table));
 
     // Map backend statuses to design states
     // Vacant = available (unless we have active orders, which means occupied)

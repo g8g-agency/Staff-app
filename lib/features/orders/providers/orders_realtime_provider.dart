@@ -45,16 +45,22 @@ final ordersRealtimeProvider = Provider<void>((ref) {
 
     Future<bool> tryEnrich() async {
       try {
-        // Direct query: order + order_items + table label in one call
+        // Direct query: order + snapshot items + table label in one call
         final orderRow = await supabase
             .from('orders')
-            .select('table_id, order_items(id, name, qty, unit_price)')
+            .select(
+              'table_id, order_snapshot_id, '
+              'snapshot:order_snapshots!orders_order_snapshot_id_fkey('
+              '  id, items:order_item_snapshots(id, item_name_snapshot, quantity, unit_price_minor)'
+              ')',
+            )
             .eq('id', orderId)
             .maybeSingle();
 
         if (orderRow == null) return false;
 
-        final rawItems = orderRow['order_items'] as List? ?? [];
+        final snapshot = orderRow['snapshot'] as Map<String, dynamic>?;
+        final rawItems = snapshot?['items'] as List? ?? [];
         if (rawItems.isEmpty) return false; // items not yet inserted — retry
 
         final items = rawItems.cast<Map<String, dynamic>>();
@@ -73,17 +79,17 @@ final ordersRealtimeProvider = Provider<void>((ref) {
           }
         }
 
-        // unit_price is stored in rupees → convert to paise (minor units)
+        // unit_price_minor is in paise (minor units)
         final totalMinor = items.fold<int>(0, (sum, item) {
-          final unitPriceRupees = (item['unit_price'] as num? ?? 0).toDouble();
-          final qty = (item['qty'] as num? ?? 1).toInt();
-          return sum + (unitPriceRupees * 100 * qty).round();
+          final unitPriceMinor = (item['unit_price_minor'] as num? ?? 0).toInt();
+          final qty = (item['quantity'] as num? ?? 1).toInt();
+          return sum + (unitPriceMinor * qty);
         });
 
         final alertItems = items
             .map((item) => <String, dynamic>{
-                  'name': item['name'] ?? 'Item',
-                  'quantity': item['qty'] ?? 1,
+                  'name': item['item_name_snapshot'] ?? 'Item',
+                  'quantity': item['quantity'] ?? 1,
                 })
             .toList();
 
@@ -115,23 +121,18 @@ final ordersRealtimeProvider = Provider<void>((ref) {
   service.onEvent.listen((event) {
     debugPrint('[ordersRealtimeProvider] EVENT: type=${event.type}, status=${event.payload['status']}');
     if (event.type == RealtimeOrderEventType.insert) {
-      alertService.playNewOrderAlert();
-      orderAlertNotifier.enqueueAlert(event.payload);
-      final orderId = (event.payload['id'] ?? event.payload['orderId'])?.toString() ?? '';
-      // Always refresh projection so table card updates immediately
+      // Just refresh projection so table cards & lists update immediately (no alert popup on menu place)
       fetchAndUpdate();
-      if (orderId.isNotEmpty) {
-        enrichAlertFromProjection(orderId);
-      }
     } else if (event.type == RealtimeOrderEventType.update) {
-      final status = event.payload['status'];
-      if (status == 'ready' || status == 'READY') {
-        final orderId = event.payload['id']?.toString() ?? '';
-        // Only show the ready popup to the waiter who accepted this order.
-        // We track accepted orders locally in _myAcceptedOrderIds.
+      final status = (event.payload['status'] ?? event.payload['order_status'])?.toString().toLowerCase();
+      if (status == 'accepted') {
+        alertService.playNewOrderAlert();
+        orderAlertNotifier.enqueueAlert(event.payload);
+      } else if (status == 'ready' || status == 'ready_for_pickup') {
+        final orderId = (event.payload['id'] ?? event.payload['orderId'])?.toString() ?? '';
         final isMyOrder = orderId.isNotEmpty
             ? orderAlertNotifier.isMyAcceptedOrder(orderId)
-            : true; // no ID → fallback to showing
+            : true;
 
         if (isMyOrder) {
           debugPrint('[ordersRealtimeProvider] Ready alert for MY order $orderId — showing popup.');

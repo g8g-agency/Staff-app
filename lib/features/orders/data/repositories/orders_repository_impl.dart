@@ -14,6 +14,8 @@ import '../../../../core/network/offline_queue.dart';
 import '../../../../core/runtime/runtime.dart';
 import '../../../auth/presentation/state/auth_notifier.dart';
 import '../datasources/remote/orders_remote_datasource.dart';
+import '../dtos/order_dto.dart';
+
 class OrdersRepositoryImpl implements OrdersRepository {
   final OrdersLocalDatasource local;
   final OrdersRemoteDatasource remote;
@@ -102,7 +104,7 @@ class OrdersRepositoryImpl implements OrdersRepository {
     final currentCached = await local.getCachedOrderById(order.id);
     final dto = order.toDto();
     
-    if (order.status != OrderStatus.completed && order.status != OrderStatus.cancelled && order.status != OrderStatus.delivered) {
+    if (order.status != OrderStatus.completed && order.status != OrderStatus.cancelled) {
       await local.cacheOrder(dto);
     } else {
       final current = await local.getCachedOrders();
@@ -255,7 +257,13 @@ class OrdersRepositoryImpl implements OrdersRepository {
             });
             
             final responseDto = await remote.transitionStatus(order.id, envelope);
-            await local.cacheOrder(responseDto);
+            if (responseDto.status == 'completed' || responseDto.status == 'cancelled') {
+              final current = await local.getCachedOrders();
+              final filtered = current.where((d) => d.id != order.id).toList();
+              await local.cacheOrders(filtered);
+            } else {
+              await local.cacheOrder(responseDto);
+            }
             return responseDto.toDomain();
           } catch (e) {
             debugPrint('[OrdersRepositoryImpl] Status transition failed online, queueing offline: $e');
@@ -303,7 +311,7 @@ class OrdersRepositoryImpl implements OrdersRepository {
     return local.watchCachedOrders().map((list) {
       return list
           .map((dto) => dto.toDomain())
-          .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled && o.status != OrderStatus.delivered)
+          .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled)
           .toList();
     });
   }
@@ -322,8 +330,11 @@ class OrdersRepositoryImpl implements OrdersRepository {
   Future<void> _preFetchOrderToCache(String orderId) async {
     try {
       final cached = await local.getCachedOrderById(orderId);
-      if (cached != null) return; // Already cached
-      
+      // Re-fetch from backend if: not cached at all, OR cached but has no items
+      // (items can be missing if the order was cached from a draft before backend responded)
+      final needsFetch = cached == null || _itemsAreEmpty(cached);
+      if (!needsFetch) return;
+
       final networkInfo = ref.read(networkInfoProvider);
       final isConnected = await networkInfo.isConnected;
       if (isConnected) {
@@ -335,6 +346,11 @@ class OrdersRepositoryImpl implements OrdersRepository {
     } catch (e) {
       debugPrint('[OrdersRepositoryImpl] Pre-fetch order details failed: $e');
     }
+  }
+
+  /// Returns true if the cached OrderDto has no items (indicating stale data).
+  bool _itemsAreEmpty(OrderDto cached) {
+    return cached.items.isEmpty;
   }
 
   @override
@@ -360,7 +376,7 @@ class OrdersRepositoryImpl implements OrdersRepository {
       try {
         final remoteItems = await remote.fetchActiveOrders(branchId);
         final activeDtos = remoteItems
-            .where((dto) => dto.status != 'completed' && dto.status != 'cancelled' && dto.status != 'delivered')
+            .where((dto) => dto.status != 'completed' && dto.status != 'cancelled')
             .toList();
         
         // Preserve local draft orders that haven't been sent to server yet
@@ -381,7 +397,7 @@ class OrdersRepositoryImpl implements OrdersRepository {
     final cached = await local.getCachedOrders();
     return cached
         .map((dto) => dto.toDomain())
-        .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled && o.status != OrderStatus.delivered)
+        .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled)
         .toList();
   }
 }

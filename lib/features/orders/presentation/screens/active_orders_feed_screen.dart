@@ -10,6 +10,7 @@ import '../../domain/entities/order.dart';
 import '../state/orders_projection_provider.dart';
 import '../../providers/orders_realtime_provider.dart';
 import '../../providers/orders_providers.dart';
+import '../../../auth/presentation/state/auth_notifier.dart';
 import '../../../tables/presentation/state/table_grid_notifier.dart';
 
 enum OrderSlaStatus { safe, stage1, stage2, stage3 }
@@ -69,8 +70,6 @@ class _ActiveOrdersFeedScreenState extends ConsumerState<ActiveOrdersFeedScreen>
     final limit = _getSlaLimit(order);
 
     if (elapsedMins >= limit + 5) {
-      // Trigger haptic pulses asynchronously for Stage 3 SLA breaches
-      HapticFeedback.vibrate();
       return OrderSlaStatus.stage3;
     } else if (elapsedMins >= limit + 1) {
       return OrderSlaStatus.stage2;
@@ -128,7 +127,6 @@ class _ActiveOrdersFeedScreenState extends ConsumerState<ActiveOrdersFeedScreen>
           ref.watch(activeOrdersProvider);
           ref.watch(ordersRealtimeProvider);
           final ordersList = ref.watch(ordersProjectionProvider);
-
           var orders = ordersList.where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled).toList();
 
           // Apply Category Filter Chips

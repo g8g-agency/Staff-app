@@ -72,10 +72,15 @@ class LiveOrdersNotifier extends StateNotifier<AsyncValue<List<Order>>> {
 
     final data = await supabase
         .from('orders')
-        .select('id, table_id, status, created_at, updated_at, staff_name, order_items(id, menu_item_id, name, qty, unit_price, seat_number, status)')
+        .select(
+          'id, table_id, status, created_at, updated_at, order_snapshot_id, '
+          'snapshot:order_snapshots!orders_order_snapshot_id_fkey('
+          '  id, items:order_item_snapshots(id, item_name_snapshot, quantity, unit_price_minor, line_total_minor)'
+          ')',
+        )
         .eq('branch_id', branchId)
         .gte('created_at', sevenDaysAgo)
-        .inFilter('status', ['pending', 'accepted', 'preparing', 'ready', 'delivered', 'sent'])
+        .inFilter('status', ['pending', 'accepted', 'preparing', 'ready', 'delivered', 'completed'])
         .order('created_at', ascending: false)
         .limit(200);
 
@@ -83,24 +88,25 @@ class LiveOrdersNotifier extends StateNotifier<AsyncValue<List<Order>>> {
     for (final row in (data as List)) {
       try {
         final m = row as Map<String, dynamic>;
-        final rawItems = (m['order_items'] as List? ?? []);
+        final snapshot = m['snapshot'] as Map<String, dynamic>?;
+        final rawItems = (snapshot?['items'] as List? ?? []);
 
         final itemDtos = rawItems.map((i) {
           final item = i as Map<String, dynamic>;
-          final priceRupees = (item['unit_price'] as num? ?? 0).toDouble();
+          final unitPriceMinor = (item['unit_price_minor'] as num? ?? 0).toInt();
           return OrderItemDto(
             id: item['id']?.toString() ?? '',
             product: MenuProductDto(
-              id: item['menu_item_id']?.toString() ?? 'unknown',
-              name: item['name']?.toString() ?? 'Item',
-              priceInCents: (priceRupees * 100).round(),
+              id: item['id']?.toString() ?? 'unknown',
+              name: item['item_name_snapshot']?.toString() ?? 'Item',
+              priceInCents: unitPriceMinor,
               category: 'Mains',
               availableModifiers: [],
             ),
-            quantity: (item['qty'] as num? ?? 1).toInt(),
+            quantity: (item['quantity'] as num? ?? 1).toInt(),
             selectedModifiers: [],
-            seatNumber: (item['seat_number'] as num? ?? 1).toInt(),
-            status: item['status']?.toString() ?? 'queued',
+            seatNumber: 1,
+            status: 'queued',
           );
         }).toList();
 
