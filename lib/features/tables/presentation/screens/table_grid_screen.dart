@@ -26,7 +26,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
     final stateAsync = ref.watch(tableGridNotifierProvider);
     final activeOrders = ref.watch(ordersProjectionProvider);
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    const isDark = false; // Forced light mode as requested
     
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 768;

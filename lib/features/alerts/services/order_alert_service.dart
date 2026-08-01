@@ -11,9 +11,9 @@ class OrderAlertService {
 
   Future<void> playNewOrderAlert() async {
     try {
-      // In a real app, you'd place a sound in assets/sounds/new_order.mp3
+      // In a real app, you'd place a sound in assets/sounds/order_alert.wav
       // For pilot, we assume the asset exists or fail gracefully
-      await _audioPlayer.play(AssetSource('sounds/new_order.mp3'));
+      await _audioPlayer.play(AssetSource('sounds/order_alert.wav'));
     } catch (e) {
       debugPrint('[OrderAlertService] Failed to play new order sound: $e');
     }

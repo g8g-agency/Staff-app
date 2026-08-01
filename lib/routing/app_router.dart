@@ -433,7 +433,7 @@ class NavigationShellLayout extends ConsumerWidget {
     final activeCallCount = ref.watch(activeWaiterCallsCountProvider);
     final realtimeState = ref.watch(realtimeStateProvider);
     final authState = ref.watch(authNotifierProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const isDark = false; // Forced light mode
 
     int selectedIndex = 0;
     if (location.startsWith('/orders-feed')) {

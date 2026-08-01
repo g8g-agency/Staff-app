@@ -22,6 +22,7 @@ class Order extends Equatable {
   final String waiterName;
   final List<String> cancelLogs;
   final String? customerPaymentIntent;
+  final int versionNum;
 
   const Order({
     required this.id,
@@ -33,6 +34,7 @@ class Order extends Equatable {
     this.waiterName = 'John Doe',
     this.cancelLogs = const [],
     this.customerPaymentIntent,
+    this.versionNum = 1,
   });
 
   bool get isPaymentRequested =>
@@ -60,6 +62,7 @@ class Order extends Equatable {
     String? waiterName,
     List<String>? cancelLogs,
     String? customerPaymentIntent,
+    int? versionNum,
   }) {
     return Order(
       id: id ?? this.id,
@@ -71,9 +74,10 @@ class Order extends Equatable {
       waiterName: waiterName ?? this.waiterName,
       cancelLogs: cancelLogs ?? this.cancelLogs,
       customerPaymentIntent: customerPaymentIntent ?? this.customerPaymentIntent,
+      versionNum: versionNum ?? this.versionNum,
     );
   }
 
   @override
-  List<Object?> get props => [id, tableId, items, status, createdAt, updatedAt, waiterName, cancelLogs, customerPaymentIntent];
+  List<Object?> get props => [id, tableId, items, status, createdAt, updatedAt, waiterName, cancelLogs, customerPaymentIntent, versionNum];
 }

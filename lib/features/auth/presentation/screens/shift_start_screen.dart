@@ -35,7 +35,7 @@ class _ShiftStartScreenState extends ConsumerState<ShiftStartScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    const isDark = false; // Forced light mode
 
     final staff = authState.loggedInStaff;
     if (staff == null) {
@@ -49,16 +49,14 @@ class _ShiftStartScreenState extends ConsumerState<ShiftStartScreen> {
     final isDesktop = screenWidth >= 768;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? AppColors.darkBackground
-          : const Color(0xFFF8F9FA),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        backgroundColor: Colors.white,
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
-            color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+            color: const Color(0xFFE2E8F0),
             height: 1,
           ),
         ),
@@ -79,16 +77,16 @@ class _ShiftStartScreenState extends ConsumerState<ShiftStartScreen> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                color: const Color(0xFF0F172A),
               ),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: Icon(
+            icon: const Icon(
               Icons.location_on_rounded,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              color: Color(0xFF0F172A),
             ),
             onPressed: () {},
           ),
@@ -110,7 +108,7 @@ class _ShiftStartScreenState extends ConsumerState<ShiftStartScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: isDesktop ? 32 : 28,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      color: const Color(0xFFE31E24), // Orderlyy Red
                       letterSpacing: -0.5,
                     ),
                   ),

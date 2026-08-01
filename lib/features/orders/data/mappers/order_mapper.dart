@@ -89,6 +89,8 @@ extension OrderMapper on Order {
       updatedAt: updatedAt.toIso8601String(),
       waiterName: waiterName,
       cancelLogs: cancelLogs,
+      customerPaymentIntent: customerPaymentIntent,
+      versionNum: versionNum,
     );
   }
 }
@@ -108,6 +110,7 @@ extension OrderDtoMapper on OrderDto {
       waiterName: waiterName ?? 'John Doe',
       cancelLogs: cancelLogs ?? [],
       customerPaymentIntent: customerPaymentIntent,
+      versionNum: versionNum,
     );
   }
 }

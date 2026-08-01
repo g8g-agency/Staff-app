@@ -74,7 +74,7 @@ class _OrderlyyAppState extends ConsumerState<OrderlyyApp> with WidgetsBindingOb
     ref.read(runtimeLifecycleManagerProvider);
 
     final router = ref.watch(routerProvider);
-    const themeMode = ThemeMode.system;
+    const themeMode = ThemeMode.light;
 
     return GestureDetector(
       onTap: () => _sessionService.recordActivity(),

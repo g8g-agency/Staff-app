@@ -236,12 +236,7 @@ class OrdersRepositoryImpl implements OrdersRepository {
         
         if (isConnected) {
           try {
-            final response = await Supabase.instance.client
-                .from('orders')
-                .select('version_num')
-                .eq('id', order.id)
-                .maybeSingle();
-            final versionNum = response?['version_num'] as int? ?? 1;
+            final versionNum = order.versionNum;
             
             final envelope = await _buildMutationEnvelope({
               'targetStatus': targetStatus,
@@ -256,7 +251,7 @@ class OrdersRepositoryImpl implements OrdersRepository {
             debugPrint('[OrdersRepositoryImpl] Status transition failed online, queueing offline: $e');
             final envelope = await _buildMutationEnvelope({
               'targetStatus': targetStatus,
-              'versionNum': 1,
+              'versionNum': order.versionNum,
               'reason': 'Status transition from Staff App',
             });
             await offlineQueue.queueWrite(action: 'orders_status_change', payload: {
@@ -267,7 +262,7 @@ class OrdersRepositoryImpl implements OrdersRepository {
         } else {
           final envelope = await _buildMutationEnvelope({
             'targetStatus': targetStatus,
-            'versionNum': 1,
+            'versionNum': order.versionNum,
             'reason': 'Status transition from Staff App',
           });
           await offlineQueue.queueWrite(action: 'orders_status_change', payload: {

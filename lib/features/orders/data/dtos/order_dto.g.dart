@@ -86,6 +86,7 @@ _OrderDto _$OrderDtoFromJson(Map<String, dynamic> json) => _OrderDto(
           .toList() ??
       const [],
   customerPaymentIntent: json['customer_payment_intent'] as String?,
+  versionNum: (json['version_num'] as num?)?.toInt() ?? 1,
 );
 
 Map<String, dynamic> _$OrderDtoToJson(_OrderDto instance) => <String, dynamic>{
@@ -98,4 +99,5 @@ Map<String, dynamic> _$OrderDtoToJson(_OrderDto instance) => <String, dynamic>{
   'waiterName': instance.waiterName,
   'cancelLogs': instance.cancelLogs,
   'customer_payment_intent': instance.customerPaymentIntent,
+  'version_num': instance.versionNum,
 };

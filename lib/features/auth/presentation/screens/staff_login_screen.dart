@@ -117,7 +117,7 @@ class _StaffLoginScreenState extends ConsumerState<StaffLoginScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    const isDark = false; // Forced light mode
     
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 768;

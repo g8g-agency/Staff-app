@@ -282,8 +282,9 @@ class OperationalRuntimeBridge {
   // ━━━━━━━━━━━━━━━━━━━━━━ ORDER ALERT DISPATCH ━━━━━━━━━━━━━━━━━━━━━━
 
   Future<void> _handleOrderAlertEvent(RuntimeEvent event) async {
-    final payload = event.payload;
+    final payload = Map<String, dynamic>.from(event.payload);
     final alertService = _ref.read(orderAlertServiceProvider);
+    
     // Backend sends 'assignedStaffId' for ORDER_READY_FOR_PICKUP/ORDER_PREPARING
     // and 'acceptedByStaffId' for ORDER_ACCEPTED — check both.
     final assignedStaffId = (payload['assignedStaffId'] ?? payload['acceptedByStaffId']) as String?;
@@ -299,6 +300,26 @@ class OperationalRuntimeBridge {
       debugPrint(
         '[OperationalRuntimeBridge] ${event.type.name} targets me ($currentStaffId) or is broadcast. Proceeding.',
       );
+    }
+
+    // 5. If the realtime payload is incomplete, fetch the complete order before rendering the popup.
+    final orderId = payload['orderId'] ?? payload['id'];
+    if (orderId != null && (payload['itemCount'] == null || payload['itemCount'] == 0 || payload['items'] == null || (payload['items'] as List).isEmpty)) {
+      try {
+        final ordersRepo = _ref.read(ordersRepositoryProvider);
+        final order = await ordersRepo.getOrderById(orderId.toString());
+        if (order != null) {
+          payload['itemCount'] = order.items.length;
+          payload['totalAmountMinor'] = order.totalPrice.amountInCents;
+          payload['items'] = order.items.map((i) => {
+            'name': i.product.name,
+            'quantity': i.quantity,
+          }).toList();
+          debugPrint('[OperationalRuntimeBridge] Enriched incomplete alert payload with ${order.items.length} items');
+        }
+      } catch (e) {
+        debugPrint('[OperationalRuntimeBridge] Failed to fetch complete order for alert: $e');
+      }
     }
 
     debugPrint(

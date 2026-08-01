@@ -36,7 +36,7 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
         queryParameters: {
           'branchId': branchId,
         },
-        options: options,
+        options: options.copyWith(extra: {'skip_cache': true}),
       );
 
       if (response.statusCode == 200) {
@@ -59,7 +59,7 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
       final options = await _getAuthOptions();
       final response = await _dioClient.get(
         '/api/v1/orders/$orderId',
-        options: options,
+        options: options.copyWith(extra: {'skip_cache': true}),
       );
 
       if (response.statusCode == 200) {
@@ -153,6 +153,8 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
       'updatedAt': payload['updated_at'] ?? DateTime.now().toIso8601String(),
       'waiterName': payload['staff_name'] ?? payload['waiterName'] ?? 'John Doe',
       'cancelLogs': [],
+      'version_num': payload['version_num'] ?? 1,
+      'customer_payment_intent': payload['customer_payment_intent'],
     };
   }
 }
