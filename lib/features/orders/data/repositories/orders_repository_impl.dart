@@ -14,6 +14,8 @@ import '../../../../core/network/offline_queue.dart';
 import '../../../../core/runtime/runtime.dart';
 import '../../../auth/presentation/state/auth_notifier.dart';
 import '../datasources/remote/orders_remote_datasource.dart';
+import '../dtos/order_dto.dart';
+
 class OrdersRepositoryImpl implements OrdersRepository {
   final OrdersLocalDatasource local;
   final OrdersRemoteDatasource remote;
@@ -101,7 +103,14 @@ class OrdersRepositoryImpl implements OrdersRepository {
   Future<Order> saveOrder(Order order) async {
     final currentCached = await local.getCachedOrderById(order.id);
     final dto = order.toDto();
-    await local.cacheOrder(dto);
+    
+    if (order.status != OrderStatus.completed && order.status != OrderStatus.cancelled) {
+      await local.cacheOrder(dto);
+    } else {
+      final current = await local.getCachedOrders();
+      final filtered = current.where((d) => d.id != order.id).toList();
+      await local.cacheOrders(filtered);
+    }
     
     final authState = ref.read(authNotifierProvider);
     final branchId = authState.selectedBranch?.id;
@@ -147,14 +156,12 @@ class OrdersRepositoryImpl implements OrdersRepository {
                 .eq('session_id', sessionId)
                 .or('status.eq.open,status.eq.locked');
             
-            if (oldCartsRes != null) {
-              final oldCartList = List<Map<String, dynamic>>.from(oldCartsRes);
+            final oldCartList = List<Map<String, dynamic>>.from(oldCartsRes);
               for (final c in oldCartList) {
                 final oldCartId = c['id'] as String;
                 await Supabase.instance.client.from('cart_items').delete().eq('cart_id', oldCartId);
                 await Supabase.instance.client.from('carts').delete().eq('id', oldCartId);
               }
-            }
 
             // 3. Insert cart
             await Supabase.instance.client.from('carts').insert({
@@ -245,7 +252,13 @@ class OrdersRepositoryImpl implements OrdersRepository {
             });
             
             final responseDto = await remote.transitionStatus(order.id, envelope);
-            await local.cacheOrder(responseDto);
+            if (responseDto.status == 'completed' || responseDto.status == 'cancelled') {
+              final current = await local.getCachedOrders();
+              final filtered = current.where((d) => d.id != order.id).toList();
+              await local.cacheOrders(filtered);
+            } else {
+              await local.cacheOrder(responseDto);
+            }
             return responseDto.toDomain();
           } catch (e) {
             debugPrint('[OrdersRepositoryImpl] Status transition failed online, queueing offline: $e');
@@ -300,16 +313,51 @@ class OrdersRepositoryImpl implements OrdersRepository {
 
   @override
   Stream<Order?> watchOrderById(String orderId) {
+    // Proactively fetch and cache the order if it's not present locally
+    _preFetchOrderToCache(orderId);
+    
     return local.watchCachedOrders().map((list) {
       final index = list.indexWhere((dto) => dto.id == orderId);
       return index != -1 ? list[index].toDomain() : null;
     });
   }
 
+  Future<void> _preFetchOrderToCache(String orderId) async {
+    try {
+      final cached = await local.getCachedOrderById(orderId);
+      // Re-fetch from backend if: not cached at all, OR cached but has no items
+      // (items can be missing if the order was cached from a draft before backend responded)
+      final needsFetch = cached == null || _itemsAreEmpty(cached);
+      if (!needsFetch) return;
+
+      final networkInfo = ref.read(networkInfoProvider);
+      final isConnected = await networkInfo.isConnected;
+      if (isConnected) {
+        final remoteOrder = await remote.getOrderById(orderId);
+        if (remoteOrder != null) {
+          await local.cacheOrder(remoteOrder);
+        }
+      }
+    } catch (e) {
+      debugPrint('[OrdersRepositoryImpl] Pre-fetch order details failed: $e');
+    }
+  }
+
+  /// Returns true if the cached OrderDto has no items (indicating stale data).
+  bool _itemsAreEmpty(OrderDto cached) {
+    return cached.items.isEmpty;
+  }
+
   @override
   Future<void> syncOrders(List<Order> orders) async {
-    final dtos = orders.map((o) => o.toDto()).toList();
-    await local.cacheOrders(dtos);
+    // Preserve local draft orders not included in the server sync
+    final currentCache = await local.getCachedOrders();
+    final localDrafts = currentCache.where((dto) => dto.status == 'draft').toList();
+    final serverIds = orders.map((o) => o.id).toSet();
+    final preservedDrafts = localDrafts.where((d) => !serverIds.contains(d.id)).toList();
+    
+    final serverDtos = orders.map((o) => o.toDto()).toList();
+    await local.cacheOrders([...serverDtos, ...preservedDrafts]);
   }
 
   @override
@@ -322,8 +370,21 @@ class OrdersRepositoryImpl implements OrdersRepository {
     if (await networkInfo.isConnected) {
       try {
         final remoteItems = await remote.fetchActiveOrders(branchId);
-        await local.cacheOrders(remoteItems);
-        return remoteItems.map((e) => e.toDomain()).toList();
+        final activeDtos = remoteItems
+            .where((dto) => dto.status != 'completed' && dto.status != 'cancelled')
+            .toList();
+        
+        // Preserve local draft orders that haven't been sent to server yet
+        final currentCache = await local.getCachedOrders();
+        final localDrafts = currentCache.where((dto) => dto.status == 'draft').toList();
+        
+        // Build merged list: remote orders + local drafts not already in remote
+        final remoteIds = activeDtos.map((d) => d.id).toSet();
+        final newDrafts = localDrafts.where((d) => !remoteIds.contains(d.id)).toList();
+        final merged = [...activeDtos, ...newDrafts];
+        
+        await local.cacheOrders(merged);
+        return merged.map((e) => e.toDomain()).toList();
       } catch (_) {
         // Fallback to cache on error
       }

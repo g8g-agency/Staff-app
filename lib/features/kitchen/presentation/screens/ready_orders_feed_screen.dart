@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../domain/entities/kitchen_ticket.dart';
 import '../state/kitchen_runtime_providers.dart';
 
 class ReadyOrdersFeedScreen extends ConsumerWidget {
@@ -156,14 +157,23 @@ class ReadyOrdersFeedScreen extends ConsumerWidget {
                             ),
                             icon: const Icon(Icons.hail_rounded),
                             label: const Text(
-                              'Confirm Delivery',
+                              'Mark Served & Complete',
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                             onPressed: () async {
                               await HapticFeedback.lightImpact();
-                              debugPrint(
-                                '[KDS] Mutation queued: Ticket ${ticket.ticketId} -> served (Waiting for ACK)',
-                              );
+                              final current = ref.read(kitchenTicketProjectionProvider).value ?? [];
+                              final updated = current.map((t) => t.ticketId == ticket.ticketId ? t.copyWith(status: KitchenTicketStatus.served) : t).toList();
+                              ref.read(kitchenTicketProjectionProvider.notifier).applyProjectionUpdate(updated);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Order marked as SERVED & Completed!'),
+                                    backgroundColor: AppColors.success,
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              }
                             },
                           ),
                         ),

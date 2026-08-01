@@ -1,5 +1,6 @@
 // lib/features/tables/presentation/state/table_grid_notifier.dart
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../domain/entities/restaurant_table.dart';
 import '../../providers/tables_providers.dart';
@@ -49,6 +50,15 @@ class TableGridNotifier extends _$TableGridNotifier {
     }
 
     return const TableGridState(isLoading: true);
+  }
+
+  Future<void> refreshTables() async {
+    try {
+      final freshTables = await ref.read(tablesRepositoryProvider).getTables();
+      state = AsyncData(TableGridState(tables: freshTables, isLoading: false));
+    } catch (e) {
+      debugPrint('[TableGridNotifier] refreshTables failed: $e');
+    }
   }
 
   Future<void> updateStatus(String tableId, TableStatus status) async {

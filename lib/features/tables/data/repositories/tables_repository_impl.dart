@@ -1,6 +1,7 @@
 // lib/features/tables/data/repositories/tables_repository_impl.dart
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/network/network_info.dart';
 import '../../../../core/network/offline_queue.dart';
 import '../../domain/entities/restaurant_table.dart';
@@ -86,6 +87,11 @@ class TablesRepositoryImpl implements TablesRepository {
     if (await networkInfo.isConnected) {
       try {
         final result = await remote.updateTableStatus(id, status.name, orderId: orderId);
+        // Explicitly update Supabase DB table active_order_id and status
+        await Supabase.instance.client.from('tables').update({
+          'status': status.name,
+          'active_order_id': orderId,
+        }).eq('id', id);
         await local.cacheTable(result);
         return result.toDomain();
       } catch (e) {

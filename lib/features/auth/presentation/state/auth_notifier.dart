@@ -57,7 +57,23 @@ class AuthNotifier extends _$AuthNotifier {
       store.branchId!,
       token,
     );
-    state = state.copyWith();
+
+    // If a staff member is currently logged in, refresh their record from the
+    // newly fetched list so profile flags and other fields stay in sync.
+    // A plain copyWith() with no args is a no-op — Riverpod won’t notify
+    // listeners unless a field actually changes.
+    if (state.loggedInStaff != null) {
+      final freshStaff = _staffMembers.cast<StaffMember?>().firstWhere(
+        (s) => s?.id == state.loggedInStaff!.id,
+        orElse: () => null,
+      );
+      if (freshStaff != null) {
+        state = state.copyWith(loggedInStaff: freshStaff);
+      }
+    } else {
+      // No staff logged in yet — just rebuild to propagate branch state.
+      state = state.copyWith();
+    }
   }
 
   Future<Map<String, dynamic>?> adminLogin(

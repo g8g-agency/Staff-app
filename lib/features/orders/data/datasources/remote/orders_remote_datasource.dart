@@ -1,6 +1,7 @@
 // lib/features/orders/data/datasources/remote/orders_remote_datasource.dart
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../../core/network/dio_client.dart';
 import '../../../../../../core/network/secure_storage.dart';
 import '../../dtos/order_dto.dart';
@@ -17,14 +18,21 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
 
   OrdersRemoteDatasourceImpl(this._dioClient);
 
-  Future<Options> _getAuthOptions() async {
-    const secureStorage = SecureLocalStorage();
-    final token = await secureStorage.read('runtime_token');
-    return Options(
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
+  Future<Options?> _getAuthOptions() async {
+    try {
+      const secureStorage = SecureLocalStorage();
+      final token = await secureStorage.read('runtime_token');
+      final sessionToken = Supabase.instance.client.auth.currentSession?.accessToken;
+      final authToken = (token != null && token.isNotEmpty) ? token : sessionToken;
+      if (authToken != null && authToken.isNotEmpty) {
+        return Options(
+          headers: {
+            'Authorization': 'Bearer $authToken',
+          },
+        );
+      }
+    } catch (_) {}
+    return null;
   }
 
   @override
@@ -120,19 +128,25 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
     throw Exception('Failed to transition order status');
   }
   Map<String, dynamic> _mapBackendOrder(Map<String, dynamic> payload) {
-    if (payload.containsKey('tableId') && payload.containsKey('createdAt')) {
-      return payload; // Already mapped (e.g. from mock)
-    }
+    final rawItemList = (payload['items'] as List?) ??
+        (payload['order_items'] as List?) ??
+        (payload['snapshot']?['items'] as List?) ??
+        [];
 
-    final items = (payload['items'] as List? ?? []).map((item) {
+    final items = rawItemList.map((item) {
       final i = item as Map<String, dynamic>;
-      final rawPrice = double.tryParse(i['unit_price']?.toString() ?? '') ?? 0.0;
+      final unitPriceMinor = i['unit_price_minor'] as num?;
+      final rawPrice = unitPriceMinor != null
+          ? (unitPriceMinor / 100).toDouble()
+          : (double.tryParse(i['unit_price']?.toString() ?? '') ?? 0.0);
       final priceInCents = (rawPrice * 100).round();
+      final name = i['name'] ?? i['item_name_snapshot'] ?? i['menu_item_name'] ?? 'Item';
+
       return {
-        'id': i['id'],
+        'id': i['id']?.toString() ?? '',
         'product': {
-          'id': i['menu_item_id'] ?? i['productId'] ?? 'unknown',
-          'name': i['name'] ?? i['menu_item_name'] ?? 'Product',
+          'id': i['menu_item_id']?.toString() ?? i['productId']?.toString() ?? i['id']?.toString() ?? 'unknown',
+          'name': name,
           'priceInCents': priceInCents,
           'category': 'Mains',
           'availableModifiers': [],
@@ -144,17 +158,45 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
       };
     }).toList();
 
+    // Translate backend status names to Flutter OrderStatus enum names
+    final backendStatus = payload['status']?.toString() ?? 'pending';
+    final flutterStatus = _translateBackendStatus(backendStatus);
+
     return {
       'id': payload['id'],
-      'tableId': payload['table_id'] ?? '',
+      'tableId': payload['table_id'] ?? payload['tableId'] ?? '',
       'items': items,
-      'status': payload['status'] ?? 'pending',
-      'createdAt': payload['created_at'] ?? DateTime.now().toIso8601String(),
-      'updatedAt': payload['updated_at'] ?? DateTime.now().toIso8601String(),
+      'status': flutterStatus,
+      'createdAt': payload['created_at'] ?? payload['createdAt'] ?? DateTime.now().toIso8601String(),
+      'updatedAt': payload['updated_at'] ?? payload['updatedAt'] ?? DateTime.now().toIso8601String(),
       'waiterName': payload['staff_name'] ?? payload['waiterName'] ?? 'John Doe',
       'cancelLogs': [],
       'version_num': payload['version_num'] ?? 1,
       'customer_payment_intent': payload['customer_payment_intent'],
     };
+  }
+
+  /// Translates backend order status strings to Flutter OrderStatus enum names.
+  /// Backend: pending, accepted, preparing, ready, delivered, completed, cancelled
+  /// Flutter enum: draft, sent, preparing, ready, delivered, completed, cancelled
+  String _translateBackendStatus(String backendStatus) {
+    switch (backendStatus.toLowerCase()) {
+      case 'pending':
+        return 'sent';       // pending on server = sent to kitchen from staff app
+      case 'accepted':
+        return 'sent';       // accepted by kitchen = still in-progress for staff
+      case 'preparing':
+        return 'preparing';
+      case 'ready':
+        return 'ready';
+      case 'delivered':
+        return 'delivered';
+      case 'completed':
+        return 'completed';
+      case 'cancelled':
+        return 'cancelled';
+      default:
+        return 'sent';       // unknown → treat as active
+    }
   }
 }

@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../orders/presentation/state/active_order_notifier.dart';
+import '../../../orders/presentation/state/orders_projection_provider.dart';
+import '../../../orders/providers/orders_providers.dart';
 import '../../../orders/domain/entities/order.dart';
 import '../../../orders/domain/entities/order_item.dart';
+import '../../../auth/presentation/state/auth_notifier.dart';
+import '../../../../shared/models/money.dart';
 import '../../domain/entities/restaurant_table.dart';
 import '../state/table_grid_notifier.dart';
 
@@ -18,6 +22,10 @@ class TableDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch real-time providers to react immediately when payment completion or orders update
+    final projectedOrders = ref.watch(ordersProjectionProvider);
+    final liveOrders = ref.watch(liveOrdersProvider).valueOrNull ?? [];
+
     final activeOrderAsync = ref.watch(activeOrderNotifierProvider(tableId));
     final tableGridStateAsync = ref.watch(tableGridNotifierProvider);
     final theme = Theme.of(context);
@@ -64,14 +72,32 @@ class TableDetailScreen extends ConsumerWidget {
           }
           final table = gridState.tables[tableIndex];
 
+          // Collect all distinct active orders for this table
+          final activeOrdersMap = <String, Order>{};
+          for (final o in projectedOrders) {
+            if ((o.tableId == tableId || o.tableId.trim() == tableId.trim()) &&
+                o.status != OrderStatus.completed &&
+                o.status != OrderStatus.cancelled) {
+              activeOrdersMap[o.id] = o;
+            }
+          }
+          for (final o in liveOrders) {
+            if ((o.tableId == tableId || o.tableId.trim() == tableId.trim()) &&
+                o.status != OrderStatus.completed &&
+                o.status != OrderStatus.cancelled) {
+              activeOrdersMap[o.id] = o;
+            }
+          }
+          final activeTableOrders = activeOrdersMap.values.toList();
+
           return activeOrderAsync.when(
             loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFE31E24))),
             error: (err, stack) => Center(child: Text('Error loading active session: $err')),
             data: (order) {
-              if (order == null || table.status == TableStatus.available || table.status == TableStatus.cleaning) {
+              if (activeTableOrders.isEmpty || (table.status == TableStatus.available && table.activeOrderId == null)) {
                 return _buildEmptyState(context, ref, table, theme, isDark);
               }
-              return _buildActiveSession(context, ref, table, order, isDark);
+              return _buildActiveSession(context, ref, table, activeTableOrders, isDark);
             },
           );
         },
@@ -124,17 +150,12 @@ class TableDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildActiveSession(BuildContext context, WidgetRef ref, RestaurantTable table, Order order, bool isDark) {
-    // Group items by seat
-    final Map<int, List<OrderItem>> groupedItems = {};
-    for (final item in order.items) {
-      if (!groupedItems.containsKey(item.seatNumber)) {
-        groupedItems[item.seatNumber] = [];
-      }
-      groupedItems[item.seatNumber]!.add(item);
+  Widget _buildActiveSession(BuildContext context, WidgetRef ref, RestaurantTable table, List<Order> activeTableOrders, bool isDark) {
+    // If no active orders exist for this table, show vacant state
+    if (activeTableOrders.isEmpty) {
+      final theme = Theme.of(context);
+      return _buildEmptyState(context, ref, table, theme, isDark);
     }
-
-    final seats = groupedItems.keys.toList()..sort();
 
     return Stack(
       children: [
@@ -147,45 +168,100 @@ class TableDetailScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Table Stats Row
-                    _buildStatsRow(table, order, isDark),
+                    // Table Stats Row (Calculates total for all active orders for this table)
+                    _buildStatsRow(table, activeTableOrders, isDark),
                     const SizedBox(height: 32),
-                    
-                    // Active Order Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Active Order',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFDAD6),
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                          child: Text(
-                            'Pending Kitchen',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF93000A),
+
+                    // Render distinct sections for each active order on this table
+                    ...activeTableOrders.map((order) {
+                      final orderIndex = activeTableOrders.indexOf(order) + 1;
+                      
+                      // Group items for this specific order by seat
+                      final Map<int, List<OrderItem>> groupedItems = {};
+                      for (final item in order.items) {
+                        if (!groupedItems.containsKey(item.seatNumber)) {
+                          groupedItems[item.seatNumber] = [];
+                        }
+                        groupedItems[item.seatNumber]!.add(item);
+                      }
+                      final seats = groupedItems.keys.toList()..sort();
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 28),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Order Header with Order Number / Index and Status
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE31E24).withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        'Order #$orderIndex',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                          color: const Color(0xFFE31E24),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      order.id.length > 8 ? 'ID: ${order.id.substring(0, 8)}' : 'ID: ${order.id}',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFDAD6),
+                                    borderRadius: BorderRadius.circular(100),
+                                  ),
+                                  child: Text(
+                                    order.status.name.toUpperCase(),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF93000A),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
 
-                    // Seats
-                    ...seats.map((seatNum) => _buildSeatGroup(seatNum, groupedItems[seatNum]!, isDark)),
+                            // Items under this specific order
+                            ...seats.map((seatNum) => _buildSeatGroup(ref, order, seatNum, groupedItems[seatNum]!, isDark)),
+                          ],
+                        ),
+                      );
+                    }),
 
-                    const SizedBox(height: 120), // Padding for bottom actions
+                    const SizedBox(height: 120), // Bottom padding for actions footer
                   ],
                 ),
               ),
@@ -204,7 +280,13 @@ class TableDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatsRow(RestaurantTable table, Order order, bool isDark) {
+  Widget _buildStatsRow(RestaurantTable table, List<Order> activeTableOrders, bool isDark) {
+    int totalCents = 0;
+    for (final o in activeTableOrders) {
+      totalCents += o.totalPrice.amountInCents;
+    }
+    final formattedTotal = Money(amountInCents: totalCents).formatted;
+
     return Row(
       children: [
         Expanded(child: _buildStatCard(Icons.group_rounded, 'Guests', '${table.occupiedSeats.isNotEmpty ? table.occupiedSeats.length : 1}', isDark)),
@@ -235,7 +317,7 @@ class TableDetailScreen extends ConsumerWidget {
                   ),
                 ),
                 Text(
-                  order.totalPrice.formatted,
+                  formattedTotal,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -285,7 +367,7 @@ class TableDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSeatGroup(int seatNum, List<OrderItem> items, bool isDark) {
+  Widget _buildSeatGroup(WidgetRef ref, Order order, int seatNum, List<OrderItem> items, bool isDark) {
     final isShared = seatNum == 0;
     
     return Container(

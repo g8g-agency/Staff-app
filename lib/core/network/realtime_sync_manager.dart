@@ -61,6 +61,11 @@ class RealtimeSyncManager {
   bool _intentionalDisconnect = false;
   Timer? _reconnectTimer;
 
+  // Guards against rapid auth-rejection loops resetting the backoff counter.
+  // Only reset attempts when the connection survived at least this long.
+  static const Duration _minStableConnectionDuration = Duration(seconds: 3);
+  DateTime? _connectedAt;
+
   // ── Heartbeat ─────────────────────────────────────────────────────────────
   Timer? _heartbeatTimer;
   Timer? _heartbeatTimeoutTimer;
@@ -148,6 +153,16 @@ class RealtimeSyncManager {
         return;
       }
 
+      // Deduplicate events by idempotency key
+      if (_processedKeys.contains(key)) {
+        debugPrint('[SYNC] Duplicate event key ignored: $key');
+        return;
+      }
+      _processedKeys.add(key);
+      if (_processedKeys.length > 500) {
+        _processedKeys.remove(_processedKeys.first);
+      }
+
       _eventController.add(
         SyncEvent(
           idempotencyKey: key,
@@ -172,7 +187,7 @@ class RealtimeSyncManager {
 
   void _onConnected() {
     debugPrint('[SYNC] Connection established.');
-    _reconnectAttempts = 0;
+    _connectedAt = DateTime.now();
     _lastMessageAt = DateTime.now();
     _updateState(RealtimeConnectionState.connected, attempts: 0);
     _startHeartbeat();
@@ -183,13 +198,19 @@ class RealtimeSyncManager {
     _lastMessageAt = DateTime.now();
     _resetHeartbeatTimeout();
 
-    // If we were in a degraded/reconnecting state and received data, recover.
+    // If we were in a degraded/reconnecting state and received data, recover
+    // only if the connection has proven stable (>= 3s since connect).
     final currentState = ref.read(realtimeStateProvider).connectionState;
     if (currentState != RealtimeConnectionState.connected &&
         currentState != RealtimeConnectionState.replaying) {
-      debugPrint('[SYNC] Message received — recovering to connected state.');
-      _reconnectAttempts = 0;
-      _updateState(RealtimeConnectionState.connected, attempts: 0);
+      final isStable = _connectedAt != null &&
+          DateTime.now().difference(_connectedAt!) >= _minStableConnectionDuration;
+      if (isStable) {
+        debugPrint('[SYNC] Message received on stable connection — recovering to connected state.');
+        _reconnectAttempts = 0;
+        _connectedAt = null; // reset so next reconnect isn't confused
+        _updateState(RealtimeConnectionState.connected, attempts: 0);
+      }
     }
 
     if (message.error != null) {
@@ -275,6 +296,15 @@ class RealtimeSyncManager {
   void _scheduleReconnect() {
     if (_intentionalDisconnect) return;
 
+    // Stability guard: only reset backoff if connection was alive long enough
+    // to distinguish a real disconnect from an immediate auth rejection (401).
+    final now = DateTime.now();
+    final wasStable = _connectedAt != null &&
+        now.difference(_connectedAt!) >= _minStableConnectionDuration;
+    if (wasStable) {
+      _reconnectAttempts = 0;
+    }
+    _connectedAt = null;
     _reconnectAttempts++;
     debugPrint(
       '[SYNC] Reconnect attempt $_reconnectAttempts / $_maxReconnectAttempts',

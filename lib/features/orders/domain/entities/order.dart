@@ -8,6 +8,7 @@ enum OrderStatus {
   sent,
   preparing,
   ready,
+  delivered,
   completed,
   cancelled,
 }

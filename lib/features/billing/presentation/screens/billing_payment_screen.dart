@@ -179,28 +179,54 @@ class _BillingPaymentScreenState extends ConsumerState<BillingPaymentScreen> {
                 SizedBox(
                   width: double.infinity,
                   height: 56,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.success,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    onPressed: () async {
-                      await ref.read(activeOrderNotifierProvider(widget.tableId).notifier).payAndComplete();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Payment processed via $_paymentMethod! Table resetting to vacant state.'),
-                            backgroundColor: AppColors.success,
-                          ),
-                        );
-                        context.pop();
-                      }
+                  child: StatefulBuilder(
+                    builder: (context, setBtnState) {
+                      bool isProcessing = false;
+                      return ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.success,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        onPressed: isProcessing
+                            ? null
+                            : () async {
+                                setBtnState(() => isProcessing = true);
+                                try {
+                                  await ref.read(activeOrderNotifierProvider(widget.tableId).notifier).payAndComplete();
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Payment processed via $_paymentMethod! Table reset to vacant.'),
+                                        backgroundColor: AppColors.success,
+                                      ),
+                                    );
+                                    context.pop();
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    setBtnState(() => isProcessing = false);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Payment completion failed: $e'),
+                                        backgroundColor: AppColors.error,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                        child: isProcessing
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                              )
+                            : Text(
+                                'Process Payment (${total.formatted})',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                      );
                     },
-                    child: Text(
-                      'Process Payment (${total.formatted})',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
                   ),
                 ),
               ],

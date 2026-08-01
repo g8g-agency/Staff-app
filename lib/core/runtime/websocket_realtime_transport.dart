@@ -36,26 +36,16 @@ class WebSocketRealtimeTransport implements RealtimeTransport {
       // Read the runtime JWT for the Sec-WebSocket-Protocol auth handshake.
       // The backend's WebSocketManager.handleUpgrade() extracts and verifies this.
       const secureStorage = SecureLocalStorage();
-      final runtimeToken = await secureStorage.read('runtime_token');
-
-      final headers = <String, dynamic>{};
-      if (runtimeToken != null && runtimeToken.isNotEmpty) {
-        // Format: "<token>" — the backend splits on ',' and picks the last part.
-        headers['Sec-WebSocket-Protocol'] = runtimeToken;
-      } else {
-        // Cannot connect without a valid token
-        _status = RealtimeTransportStatus.error;
-        _messageController.add(
-          RealtimeTransportMessage(
-            rawPayload: '',
-            error: Exception('No runtime token available for connection'),
-          ),
-        );
-        debugPrint('[Transport] Skipping connection: No runtime token.');
-        return;
+      var runtimeToken = await secureStorage.read('runtime_token');
+      if (runtimeToken == null || runtimeToken.isEmpty) {
+        runtimeToken = await secureStorage.read('access_token');
       }
 
-      _channel = WebSocketChannel.connect(url, protocols: [runtimeToken]);
+      if (runtimeToken != null && runtimeToken.isNotEmpty) {
+        _channel = WebSocketChannel.connect(url, protocols: [runtimeToken]);
+      } else {
+        _channel = WebSocketChannel.connect(url);
+      }
 
       _subscription = _channel!.stream.listen(
         _onRawMessage,

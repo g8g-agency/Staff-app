@@ -5,9 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../domain/entities/restaurant_table.dart';
 import '../state/table_grid_notifier.dart';
-import '../../../orders/presentation/state/orders_projection_provider.dart';
 import '../../../orders/domain/entities/order.dart';
+import '../../../orders/providers/orders_providers.dart';
 import '../../../orders/providers/orders_realtime_provider.dart';
+import '../../../orders/presentation/state/orders_projection_provider.dart';
+import '../../../auth/presentation/state/auth_notifier.dart';
 import '../../../../shared/models/money.dart';
 
 class TableGridScreen extends ConsumerStatefulWidget {
@@ -22,9 +24,10 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Keep alert-side realtime provider alive (popup + sound)
     ref.watch(ordersRealtimeProvider);
+
     final stateAsync = ref.watch(tableGridNotifierProvider);
-    final activeOrders = ref.watch(ordersProjectionProvider);
     final theme = Theme.of(context);
     const isDark = false; // Forced light mode as requested
     
@@ -88,66 +91,87 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                         const SizedBox(height: 32),
 
                         // Main Grid
-                        stateAsync.when(
-                          loading: () => const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(32.0),
-                              child: CircularProgressIndicator(color: Color(0xFFE31E24)),
-                            ),
-                          ),
-                          error: (err, stack) => Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFBA1A1A)),
-                                const SizedBox(height: 16),
-                                Text('Failed to load layout: $err', style: theme.textTheme.bodyMedium),
-                                const SizedBox(height: 16),
-                                ElevatedButton(
-                                  onPressed: () => ref.invalidate(tableGridNotifierProvider),
-                                  child: const Text('Retry'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          data: (state) {
-                            // Filter tables by selected floor
-                            final tables = _selectedZone == 'All'
-                                ? state.tables
-                                : state.tables.where((t) => t.floorName == _selectedZone).toList();
+                        Consumer(
+                          builder: (context, ref, child) {
+                            final liveOrders = ref.watch(liveOrdersProvider).valueOrNull ?? [];
+                            final projectedOrders = ref.watch(ordersProjectionProvider);
+                            // Combine active orders from both live provider and projection store for real-time reactivity
+                            final ordersMap = <String, Order>{};
+                            for (final o in liveOrders) { ordersMap[o.id] = o; }
+                            for (final o in projectedOrders) { ordersMap[o.id] = o; }
+                            final activeOrders = ordersMap.values.toList();
 
-                            if (tables.isEmpty) {
-                              return Center(
-                                child: Text(
-                                  'No tables available',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 16,
-                                    color: isDark ? Colors.white54 : const Color(0xFF64748B),
-                                  ),
+                            return stateAsync.when(
+                              loading: () => const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(32.0),
+                                  child: CircularProgressIndicator(color: Color(0xFFE31E24)),
                                 ),
-                              );
-                            }
-                            
-                            return LayoutBuilder(
-                              builder: (context, constraints) {
-                                int crossAxisCount = 1;
+                              ),
+                              error: (err, stack) => Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFBA1A1A)),
+                                    const SizedBox(height: 16),
+                                    Text('Failed to load layout: $err', style: theme.textTheme.bodyMedium),
+                                    const SizedBox(height: 16),
+                                    ElevatedButton(
+                                      onPressed: () => ref.invalidate(tableGridNotifierProvider),
+                                      child: const Text('Retry'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              data: (state) {
+                                // Filter tables by selected floor
+                                final tables = _selectedZone == 'All'
+                                    ? state.tables
+                                    : state.tables.where((t) => t.floorName == _selectedZone).toList();
 
-                                return GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: crossAxisCount,
-                                    crossAxisSpacing: 16,
-                                    mainAxisSpacing: 16,
-                                    childAspectRatio: 3.2,
-                                  ),
-                                  itemCount: tables.length,
-                                  itemBuilder: (context, index) {
-                                    final table = tables[index];
-                                    return _buildTableCard(table, isDark, activeOrders)
-                                      .animate()
-                                      .fadeIn(delay: (50 * index).ms)
-                                      .slideY(begin: 0.1, delay: (50 * index).ms);
+                                if (tables.isEmpty) {
+                                  return Center(
+                                    child: Text(
+                                      'No tables available',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 16,
+                                        color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  );
+                                }
+                                
+                                return LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    int crossAxisCount = 1;
+                                    double childAspectRatio = 3.2;
+
+                                    if (constraints.maxWidth >= 900) {
+                                      crossAxisCount = 3;
+                                      childAspectRatio = 1.6;
+                                    } else if (constraints.maxWidth >= 600) {
+                                      crossAxisCount = 2;
+                                      childAspectRatio = 1.8;
+                                    }
+
+                                    return GridView.builder(
+                                      shrinkWrap: true,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: crossAxisCount,
+                                        crossAxisSpacing: 16,
+                                        mainAxisSpacing: 16,
+                                        childAspectRatio: childAspectRatio,
+                                      ),
+                                      itemCount: tables.length,
+                                      itemBuilder: (context, index) {
+                                        final table = tables[index];
+                                        return _buildTableCard(table, isDark, activeOrders)
+                                          .animate()
+                                          .fadeIn(delay: (50 * index).ms)
+                                          .slideY(begin: 0.1, delay: (50 * index).ms);
+                                      },
+                                    );
                                   },
                                 );
                               },
@@ -240,17 +264,29 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
     );
   }
 
-  String _getTableAmount(RestaurantTable table, List<Order> activeOrders) {
-    debugPrint('[TableGridScreen] _getTableAmount table=${table.label} activeOrdersCount=${activeOrders.length}');
-    for (final o in activeOrders) {
-      if (o.tableId == table.id) {
-        debugPrint('  -> Order: num=${o.id} status=${o.status} price=${o.totalPrice.formatted}');
-      }
+  bool _isOrderForTable(Order o, RestaurantTable table) {
+    if (o.status == OrderStatus.completed || o.status == OrderStatus.cancelled) {
+      return false;
     }
-    var totalCents = 0;
+    final tid = o.tableId.trim();
+    if (tid.isEmpty && table.activeOrderId != o.id) return false;
+
+    if (tid == table.id || tid == table.label || table.activeOrderId == o.id) return true;
+
+    // Direct label comparison e.g. "Table 4" vs "Table 4" or "4"
+    final cleanTableLabel = table.label.toLowerCase().replaceAll('table', '').trim();
+    final cleanOrderTable = tid.toLowerCase().replaceAll('table', '').trim();
+    if (cleanTableLabel.isNotEmpty && cleanTableLabel == cleanOrderTable) return true;
+
+    return false;
+  }
+
+  /// Calculates total monetary amount for active orders at this table.
+  String _getTableAmount(RestaurantTable table, List<Order> activeOrders) {
+    int totalCents = 0;
     bool hasOrders = false;
     for (final o in activeOrders) {
-      if (o.tableId == table.id && o.status != OrderStatus.completed && o.status != OrderStatus.cancelled) {
+      if (_isOrderForTable(o, table)) {
         totalCents += o.totalPrice.amountInCents;
         hasOrders = true;
       }
@@ -258,16 +294,38 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
     return hasOrders ? Money(amountInCents: totalCents).formatted : '₹0.00';
   }
 
+  /// Returns elapsed time since the first active order for this table,
+  /// e.g. "12m", "1h 05m". Falls back to '-' if no orders.
+  String _getTableElapsed(RestaurantTable table, List<Order> activeOrders) {
+    DateTime? earliest;
+    for (final o in activeOrders) {
+      if (_isOrderForTable(o, table)) {
+        if (earliest == null || o.createdAt.isBefore(earliest)) {
+          earliest = o.createdAt;
+        }
+      }
+    }
+    if (earliest == null) return '-';
+    final diff = DateTime.now().difference(earliest);
+    if (diff.inHours >= 1) {
+      return '${diff.inHours}h ${(diff.inMinutes % 60).toString().padLeft(2, '0')}m';
+    }
+    return '${diff.inMinutes}m';
+  }
+
   Widget _buildTableCard(RestaurantTable table, bool isDark, List<Order> activeOrders) {
     final status = table.status;
     
+    // Check if the table has any active order currently in the projection
+    final hasActiveOrder = activeOrders.any((o) => _isOrderForTable(o, table));
+
     // Map backend statuses to design states
-    // Vacant = available
+    // Vacant = available (unless we have active orders, which means occupied)
     // Occupied = occupied
     // Calling = needsAttention
     // Bill Requested = reserved (mocked mapping)
     
-    if (status == TableStatus.available) {
+    if (status == TableStatus.available && !hasActiveOrder) {
       return _buildVacantCard(table, isDark);
     } else if (status == TableStatus.needsAttention) {
       return _buildCallingCard(table, isDark, activeOrders);
@@ -340,7 +398,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
 
   Widget _buildOccupiedCard(RestaurantTable table, bool isDark, List<Order> activeOrders) {
     final amount = _getTableAmount(table, activeOrders);
-    const time = '45m';
+    final time = _getTableElapsed(table, activeOrders);
     
     return InkWell(
       onTap: () => context.push('/tables/${table.id}'),

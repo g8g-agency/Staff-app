@@ -35,8 +35,12 @@ class AuthRepository {
         // The Staff App routes all data through the backend REST API, but the Realtime
         // subscription relies on direct Supabase Postgres replication, which enforces RLS.
         // Thus, we must authenticate the Supabase client.
+        // Authenticate the Supabase client so that Realtime/RLS works.
+        // recoverSession() accepts a raw refresh token and exchanges it
+        // for a new session pair — the correct API here, not setSession()
+        // which expects a full persisted JSON session string.
         try {
-          await _supabase.auth.setSession(refreshToken);
+          await _supabase.auth.recoverSession(refreshToken);
           debugPrint('[AuthRepository] Supabase client session established.');
         } catch (e) {
           debugPrint('[AuthRepository] Failed to set Supabase session: $e');

@@ -1,5 +1,6 @@
 // lib/features/orders/presentation/state/active_order_notifier.dart
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../core/utils/uuid.dart';
 import '../../../tables/domain/entities/restaurant_table.dart';
@@ -9,6 +10,8 @@ import '../../domain/entities/menu_product.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/entities/order_item.dart';
 import '../../providers/orders_providers.dart';
+
+import 'orders_projection_provider.dart';
 
 part 'active_order_notifier.g.dart';
 
@@ -26,10 +29,12 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
 
     // Watch all active orders and filter for this table
     _subscription = repository.watchActiveOrders().listen((orders) {
-      final tableOrders = orders.where((o) => o.tableId == tableId).toList();
-      print('[ActiveOrderNotifier] watchActiveOrders: tableId=$tableId count=${tableOrders.length}');
+      final tableOrders = orders
+          .where((o) => o.tableId == tableId && o.status != OrderStatus.completed && o.status != OrderStatus.cancelled)
+          .toList();
+      debugPrint('[ActiveOrderNotifier] watchActiveOrders: tableId=$tableId count=${tableOrders.length}');
       for (final o in tableOrders) {
-        print('  -> Order num=${o.id} status=${o.status} itemsCount=${o.items.length} totalPrice=${o.totalPrice.formatted}');
+        debugPrint('  -> Order num=${o.id} status=${o.status} itemsCount=${o.items.length} totalPrice=${o.totalPrice.formatted}');
       }
       if (tableOrders.isEmpty) {
         state = const AsyncData(null);
@@ -50,7 +55,11 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
         id: draftOrder.id,
         tableId: tableId,
         items: allItems,
-        status: tableOrders.any((o) => o.status == OrderStatus.draft) ? OrderStatus.draft : OrderStatus.sent,
+        status: tableOrders.any((o) => o.status == OrderStatus.draft)
+            ? OrderStatus.draft
+            : (tableOrders.every((o) => o.status == OrderStatus.delivered)
+                ? OrderStatus.delivered
+                : OrderStatus.sent),
         createdAt: draftOrder.createdAt,
         updatedAt: DateTime.now(),
         waiterName: draftOrder.waiterName,
@@ -62,10 +71,12 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
 
     // Initial load from cache
     final initialOrders = await repository.fetchActiveOrders();
-    final tableOrders = initialOrders.where((o) => o.tableId == tableId).toList();
-    print('[ActiveOrderNotifier] Initial load: tableId=$tableId count=${tableOrders.length}');
+    final tableOrders = initialOrders
+        .where((o) => o.tableId == tableId && o.status != OrderStatus.completed && o.status != OrderStatus.cancelled)
+        .toList();
+    debugPrint('[ActiveOrderNotifier] Initial load: tableId=$tableId count=${tableOrders.length}');
     for (final o in tableOrders) {
-      print('  -> Order num=${o.id} status=${o.status} itemsCount=${o.items.length} totalPrice=${o.totalPrice.formatted}');
+      debugPrint('  -> Order num=${o.id} status=${o.status} itemsCount=${o.items.length} totalPrice=${o.totalPrice.formatted}');
     }
     if (tableOrders.isEmpty) return null;
 
@@ -83,12 +94,29 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
       id: draftOrder.id,
       tableId: tableId,
       items: allItems,
-      status: tableOrders.any((o) => o.status == OrderStatus.draft) ? OrderStatus.draft : OrderStatus.sent,
+      status: tableOrders.any((o) => o.status == OrderStatus.draft)
+          ? OrderStatus.draft
+          : (tableOrders.every((o) => o.status == OrderStatus.delivered)
+              ? OrderStatus.delivered
+              : OrderStatus.sent),
       createdAt: draftOrder.createdAt,
       updatedAt: DateTime.now(),
       waiterName: draftOrder.waiterName,
       cancelLogs: tableOrders.expand((o) => o.cancelLogs).toList(),
     );
+  }
+
+  /// Syncs a single order into ordersProjectionProvider so table cards update immediately.
+  void _syncOrderToProjection(Order order) {
+    final current = ref.read(ordersProjectionProvider);
+    final idx = current.indexWhere((o) => o.id == order.id);
+    final updated = [...current];
+    if (idx != -1) {
+      updated[idx] = order;
+    } else {
+      updated.add(order);
+    }
+    ref.read(ordersProjectionProvider.notifier).updateProjection(updated);
   }
 
   Future<void> createOrder() async {
@@ -104,11 +132,14 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
       updatedAt: DateTime.now(),
     );
 
-    // Save order
+    // Save order to local cache (triggers stream update)
     await repository.saveOrder(newOrder);
     
     // Update table status to occupied and bind order ID
     await updateTableStatus(tableId, TableStatus.occupied, orderId: newOrder.id);
+
+    // Immediately update the projection so table card switches to occupied
+    _syncOrderToProjection(newOrder);
     
     state = AsyncData(newOrder);
   }
@@ -163,6 +194,8 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
     );
 
     await repository.saveOrder(updated);
+    // Sync updated order into the grid projection
+    _syncOrderToProjection(updated);
     state = AsyncData(updated);
   }
 
@@ -219,21 +252,52 @@ class ActiveOrderNotifier extends _$ActiveOrderNotifier {
     final updateTableStatus = ref.read(updateTableStatusUseCaseProvider);
 
     final allOrders = await repository.fetchActiveOrders();
-    final tableOrders = allOrders.where((o) => o.tableId == tableId).toList();
+    final tableOrders = allOrders
+        .where((o) => (o.tableId == tableId || o.tableId.trim() == tableId.trim()) &&
+            o.status != OrderStatus.completed &&
+            o.status != OrderStatus.cancelled)
+        .toList();
 
-    for (final o in tableOrders) {
+    debugPrint('[ActiveOrderNotifier] payAndComplete processing ${tableOrders.length} orders for table $tableId');
+
+    // Process all active orders for this table in parallel
+    await Future.wait(tableOrders.map((o) async {
       final updated = o.copyWith(
         status: OrderStatus.completed,
         updatedAt: DateTime.now(),
       );
       await repository.saveOrder(updated);
-    }
+      await repository.applyRemoteOrderDelete(o.id);
+    }));
     
+    // Update local projection store state for orders immediately to prevent stale read
+    final currentProjection = ref.read(ordersProjectionProvider);
+    final updatedProjection = currentProjection.where((o) => o.tableId != tableId).toList();
+    ref.read(ordersProjectionProvider.notifier).updateProjection(updatedProjection);
+
     // Update table status to available (vacant), clear active order
     await updateTableStatus(tableId, TableStatus.available, orderId: null);
     ref.invalidate(tableGridNotifierProvider);
     
     state = const AsyncData(null);
+  }
+
+  Future<void> markOrderServed(String orderId) async {
+    final repository = ref.read(ordersRepositoryProvider);
+    final allOrders = await repository.fetchActiveOrders();
+    final index = allOrders.indexWhere((o) => o.id == orderId);
+    if (index != -1) {
+      final updated = allOrders[index].copyWith(
+        status: OrderStatus.delivered,
+        updatedAt: DateTime.now(),
+      );
+      await repository.saveOrder(updated);
+    }
+
+    final currentProjection = ref.read(ordersProjectionProvider);
+    final updatedProjection = currentProjection.map((o) => o.id == orderId ? o.copyWith(status: OrderStatus.delivered) : o).toList();
+    ref.read(ordersProjectionProvider.notifier).updateProjection(updatedProjection);
+    ref.invalidate(tableGridNotifierProvider);
   }
 
   Future<void> clearAlert() async {
