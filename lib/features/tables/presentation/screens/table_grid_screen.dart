@@ -95,11 +95,30 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                           builder: (context, ref, child) {
                             final liveOrders = ref.watch(liveOrdersProvider).valueOrNull ?? [];
                             final projectedOrders = ref.watch(ordersProjectionProvider);
-                            // Combine active orders from both live provider and projection store for real-time reactivity
+                            // Combine active orders from both live provider and projection store
                             final ordersMap = <String, Order>{};
                             for (final o in liveOrders) { ordersMap[o.id] = o; }
                             for (final o in projectedOrders) { ordersMap[o.id] = o; }
-                            final activeOrders = ordersMap.values.toList();
+
+                            // ── Waiter Scoping ──────────────────────────────────────────
+                            // Only show orders belonging to the currently logged-in staff.
+                            // Orders with empty waiterName are treated as unscoped (visible to all).
+                            final authState = ref.watch(authNotifierProvider);
+                            final loggedInStaffName = authState.loggedInStaff?.name ?? '';
+
+                            final activeOrders = ordersMap.values.where((o) {
+                              // Exclude completed and cancelled orders from floor layout
+                              if (o.status == OrderStatus.completed || o.status == OrderStatus.cancelled) return false;
+                              // If waiterName is set and doesn't match logged-in staff, skip
+                              if (o.waiterName.isNotEmpty &&
+                                  o.waiterName != 'Staff' &&
+                                  o.waiterName != 'John Doe' &&
+                                  loggedInStaffName.isNotEmpty &&
+                                  o.waiterName != loggedInStaffName) {
+                                return false;
+                              }
+                              return true;
+                            }).toList();
 
                             return stateAsync.when(
                               loading: () => const Center(
@@ -572,7 +591,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                     children: [
                       const Icon(Icons.schedule_rounded, size: 16, color: Color(0xFF93000A)),
                       const SizedBox(width: 4),
-                      Text('12m', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: const Color(0xFF93000A))),
+                      Text(_getTableElapsed(table, activeOrders), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: const Color(0xFF93000A))),
                     ],
                   ),
                   Text(
@@ -668,7 +687,7 @@ class _TableGridScreenState extends ConsumerState<TableGridScreen> {
                     children: [
                       Icon(Icons.schedule_rounded, size: 16, color: isDark ? Colors.white : const Color(0xFF3F484F)),
                       const SizedBox(width: 4),
-                      Text('90m', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: isDark ? Colors.white : const Color(0xFF3F484F))),
+                      Text(_getTableElapsed(table, activeOrders), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: isDark ? Colors.white : const Color(0xFF3F484F))),
                     ],
                   ),
                   Text(

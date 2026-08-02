@@ -6,11 +6,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:dio/dio.dart';
 import '../../domain/entities/order_alert_model.dart';
 import '../../../../core/network/network_providers.dart';
-import '../../../../core/network/secure_storage.dart';
 import '../../services/order_action_service.dart';
 import '../../providers/orders_providers.dart';
 
@@ -125,75 +122,10 @@ class OrderAlertNotifier extends StateNotifier<OrderAlertState> {
         totalReceived: state.totalReceived + 1,
       );
     }
-
-    _enrichAlert(alert.orderId);
+    // NOTE: payload enrichment (items/total/table) is done by OperationalRuntimeBridge
+    // BEFORE this method is called. No secondary enrichment needed here.
   }
 
-  /// Queries the backend API for order details (resolved via snapshots on server) to enrich the alert.
-  Future<void> _enrichAlert(String orderId) async {
-    // Retry up to 5 times (total 2.5 seconds) to allow DB triggers / order_item_snapshots to be committed
-    for (int attempt = 1; attempt <= 5; attempt++) {
-      await Future.delayed(Duration(milliseconds: attempt == 1 ? 300 : 500));
-
-      try {
-        final dio = _ref.read(dioClientProvider);
-        final response = await dio.get('/api/v1/orders/$orderId');
-
-        if (response.statusCode == 200 && response.data['success'] == true) {
-          final orderData = response.data['data']['order'] as Map<String, dynamic>?;
-          if (orderData != null) {
-            final tableNumber = orderData['table_number']?.toString() ?? 'Table';
-            final rawItems = orderData['items'] as List? ?? [];
-            final alertItems = <Map<String, dynamic>>[];
-
-            for (final item in rawItems) {
-              final name = (item['name'] ?? 'Item').toString();
-              final qty = ((item['qty'] ?? 1) as num).toInt();
-              alertItems.add({'name': name, 'quantity': qty});
-            }
-
-            final totalAmountRupees = (orderData['total_amount'] as num? ?? 0).toDouble();
-            final totalMinor = (totalAmountRupees * 100).round();
-
-            if (alertItems.isNotEmpty || totalMinor > 0) {
-              debugPrint('[OrderAlertNotifier] Enriching order $orderId on attempt $attempt: ${alertItems.length} items, total: $totalMinor paise, table: $tableNumber');
-              enrichAlert(
-                orderId: orderId,
-                tableLabel: tableNumber,
-                itemCount: alertItems.length,
-                totalAmountMinor: totalMinor,
-                items: alertItems,
-              );
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('[OrderAlertNotifier] Attempt $attempt _enrichAlert failed for $orderId: $e');
-      }
-
-      // Try local repository query fallback on each attempt
-      try {
-        final repo = _ref.read(ordersRepositoryProvider);
-        final repoOrder = await repo.getOrderById(orderId);
-        if (repoOrder != null && (repoOrder.items.isNotEmpty || repoOrder.totalPrice.amountInCents > 0)) {
-          final alertItems = repoOrder.items
-              .map((i) => {'name': i.product.name, 'quantity': i.quantity})
-              .toList();
-          final totalMinor = repoOrder.totalPrice.amountInCents;
-          debugPrint('[OrderAlertNotifier] Fallback Repository Enriching order $orderId on attempt $attempt: ${alertItems.length} items, total: $totalMinor paise');
-          enrichAlert(
-            orderId: orderId,
-            tableLabel: 'Table',
-            itemCount: alertItems.length,
-            totalAmountMinor: totalMinor,
-            items: alertItems,
-          );
-          return;
-        }
-      } catch (_) {}
-    }
-  }
 
   /// Enrich an existing queued alert with data resolved from the full order fetch.
   /// Called after fetchAndUpdate() completes to fill in table label, item count, total, and items.
@@ -248,6 +180,16 @@ class OrderAlertNotifier extends StateNotifier<OrderAlertState> {
     );
   }
 
+  /// Immediately evicts pending and ready alerts for an order that was cancelled/rejected.
+  void dismissAlertForOrder(String orderId) {
+    _cancelTimeoutTimer(orderId);
+    state = state.copyWith(
+      queue: state.queue.where((a) => a.orderId != orderId).toList(),
+      readyQueue: state.readyQueue.where((a) => a.orderId != orderId).toList(),
+    );
+    debugPrint('[OrderAlert] Evicted alerts for cancelled/rejected order $orderId');
+  }
+
   /// Restore pending alerts from backend on reconnect.
   Future<void> restorePendingAlerts({
     required String branchId,
@@ -265,15 +207,21 @@ class OrderAlertNotifier extends StateNotifier<OrderAlertState> {
         final orders = response.data['data']['orders'] as List<dynamic>? ?? [];
         for (final order in orders) {
           final m = order as Map<String, dynamic>;
-          // Build a minimal payload from the order record
+          final orderId = (m['id'] ?? '').toString();
+          if (orderId.isEmpty) continue;
+
+          // Build payload with whatever the server returns — enrichment below will fill gaps
           enqueueAlert({
-            'orderId': m['id'],
+            'orderId': orderId,
             'orderNumber': m['order_number'],
-            'tableNumber': m['table_id'], // Will improve with join
-            'totalAmountMinor': 0,
-            'itemCount': 0,
+            // Use table_number from server if available; enrichment will resolve label
+            'tableLabel': m['table_number'] ?? m['table_label'] ?? 'N/A',
+            'tableNumber': m['table_number'] ?? m['table_label'] ?? 'N/A',
+            'totalAmountMinor': ((m['total_amount'] as num? ?? 0) * 100).round(),
+            'itemCount': m['item_count'] ?? 0,
             'orderTime': m['created_at'],
             'items': <dynamic>[],
+            'versionNum': m['version_num'] ?? 1,
           });
         }
         debugPrint('[OrderAlert] Restored ${orders.length} pending alerts from backend.');

@@ -80,7 +80,9 @@ class LiveOrdersNotifier extends StateNotifier<AsyncValue<List<Order>>> {
         )
         .eq('branch_id', branchId)
         .gte('created_at', sevenDaysAgo)
-        .inFilter('status', ['pending', 'accepted', 'preparing', 'ready', 'delivered', 'completed'])
+        // NOTE: 'completed' intentionally excluded — completed orders must NOT appear
+        // on the floor layout or active feeds after checkout.
+        .inFilter('status', ['pending', 'accepted', 'preparing', 'ready', 'delivered'])
         .order('created_at', ascending: false)
         .limit(200);
 

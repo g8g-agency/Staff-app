@@ -7,7 +7,9 @@
 //   • Glassmorphism dark card with animated border pulse
 //   • Stays on screen until a staff member accepts or passes (no auto-expire timer)
 
+import 'dart:async';
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -176,6 +178,10 @@ class _IncomingOrderAlertOverlayState
   late AnimationController _shimmerController;
   late Animation<double> _shimmerAnimation;
 
+  // Tracks whether enrichment deadline has passed (shimmer → fallback message)
+  bool _enrichmentDeadlinePassed = false;
+  Timer? _enrichmentDeadlineTimer;
+
   @override
   void initState() {
     super.initState();
@@ -217,10 +223,19 @@ class _IncomingOrderAlertOverlayState
     );
 
     _entranceController.forward();
+
+    // After 6s, if items are still empty, stop showing shimmer — show fallback message instead.
+    // This covers the case where the backend is slow or enrichment fails all retries.
+    _enrichmentDeadlineTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted && !_enrichmentDeadlinePassed) {
+        setState(() => _enrichmentDeadlinePassed = true);
+      }
+    });
   }
 
   @override
   void dispose() {
+    _enrichmentDeadlineTimer?.cancel();
     _entranceController.dispose();
     _pulseController.dispose();
     _shimmerController.dispose();
@@ -268,7 +283,13 @@ class _IncomingOrderAlertOverlayState
       });
     }
 
-    final isEnriched = liveAlert.itemCount > 0 || liveAlert.items.isNotEmpty || liveAlert.totalAmountMinor > 0;
+    // isEnriched: true when we have either items OR a non-zero total
+    final isEnriched = liveAlert.items.isNotEmpty ||
+        (liveAlert.itemCount > 0 && liveAlert.totalAmountMinor > 0);
+    // Once enriched, cancel the deadline timer
+    if (isEnriched && _enrichmentDeadlineTimer?.isActive == true) {
+      _enrichmentDeadlineTimer!.cancel();
+    }
 
     return Material(
       color: Colors.transparent,
@@ -634,7 +655,11 @@ class _IncomingOrderAlertOverlayState
   }
 
   Widget _buildItemsSection(IncomingOrderAlert alert, bool isEnriched) {
-    if (!isEnriched || (alert.items.isEmpty && alert.itemCount > 0)) {
+    if (!isEnriched || alert.items.isEmpty) {
+      // Show fallback message if enrichment deadline has passed (6s) — prevents infinite shimmer
+      if (_enrichmentDeadlinePassed) {
+        return _buildItemsFallback();
+      }
       // Show shimmer skeleton rows while waiting for item details
       return _buildItemsShimmer();
     }
@@ -785,6 +810,34 @@ class _IncomingOrderAlertOverlayState
             ),
             if (i < 2) const SizedBox(height: 10),
           ],
+        ],
+      ),
+    );
+  }
+
+  /// Shown after 6s if enrichment API never returns items — prevents infinite shimmer.
+  Widget _buildItemsFallback() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: Colors.white24, size: 16),
+          const SizedBox(width: 8),
+          Text(
+            'Item details unavailable — please accept to view full order',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: Colors.white30,
+              fontStyle: FontStyle.italic,
+            ),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );

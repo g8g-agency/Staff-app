@@ -127,7 +127,22 @@ class _ActiveOrdersFeedScreenState extends ConsumerState<ActiveOrdersFeedScreen>
           ref.watch(activeOrdersProvider);
           ref.watch(ordersRealtimeProvider);
           final ordersList = ref.watch(ordersProjectionProvider);
-          var orders = ordersList.where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled).toList();
+          final authState = ref.watch(authNotifierProvider);
+          final loggedInStaffName = authState.loggedInStaff?.name ?? '';
+
+          // Exclude completed/cancelled orders, then scope to logged-in waiter.
+          // Orders with empty/generic waiterName are visible to all staff.
+          var orders = ordersList.where((o) {
+            if (o.status == OrderStatus.completed || o.status == OrderStatus.cancelled) return false;
+            if (o.waiterName.isNotEmpty &&
+                o.waiterName != 'Staff' &&
+                o.waiterName != 'John Doe' &&
+                loggedInStaffName.isNotEmpty &&
+                o.waiterName != loggedInStaffName) {
+              return false;
+            }
+            return true;
+          }).toList();
 
           // Apply Category Filter Chips
           if (_statusFilter != null) {

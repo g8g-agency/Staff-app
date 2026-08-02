@@ -44,7 +44,7 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
         queryParameters: {
           'branchId': branchId,
         },
-        options: options.copyWith(extra: {'skip_cache': true}),
+        options: options?.copyWith(extra: {'skip_cache': true}) ?? Options(extra: {'skip_cache': true}),
       );
 
       if (response.statusCode == 200) {
@@ -67,7 +67,7 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
       final options = await _getAuthOptions();
       final response = await _dioClient.get(
         '/api/v1/orders/$orderId',
-        options: options.copyWith(extra: {'skip_cache': true}),
+        options: options?.copyWith(extra: {'skip_cache': true}) ?? Options(extra: {'skip_cache': true}),
       );
 
       if (response.statusCode == 200) {
@@ -127,53 +127,97 @@ class OrdersRemoteDatasourceImpl implements OrdersRemoteDatasource {
     }
     throw Exception('Failed to transition order status');
   }
+  /// Maps a backend order payload (from GET /api/v1/orders or /api/v1/orders/:id) to
+  /// the shape expected by OrderDto.fromJson.
+  ///
+  /// Backend item shape (from order_item_snapshots via snapshot join):
+  ///   { name: item_name_snapshot, qty: quantity, unit_price: unit_price_minor/100,
+  ///     line_total: line_total_minor/100 }
+  ///
+  /// NOTE: unit_price is already in RUPEES (backend divides unit_price_minor / 100).
+  ///       Do NOT multiply by 100 again — convert directly to paise by *100.
   Map<String, dynamic> _mapBackendOrder(Map<String, dynamic> payload) {
+    final orderId = payload['id']?.toString() ?? '';
+
     final rawItemList = (payload['items'] as List?) ??
         (payload['order_items'] as List?) ??
         (payload['snapshot']?['items'] as List?) ??
         [];
 
-    final items = rawItemList.map((item) {
-      final i = item as Map<String, dynamic>;
-      final unitPriceMinor = i['unit_price_minor'] as num?;
-      final rawPrice = unitPriceMinor != null
-          ? (unitPriceMinor / 100).toDouble()
-          : (double.tryParse(i['unit_price']?.toString() ?? '') ?? 0.0);
-      final priceInCents = (rawPrice * 100).round();
-      final name = i['name'] ?? i['item_name_snapshot'] ?? i['menu_item_name'] ?? 'Item';
+    final items = List.generate(rawItemList.length, (index) {
+      final i = rawItemList[index] as Map<String, dynamic>;
+
+      // Backend sends unit_price already in RUPEES (it divided unit_price_minor by 100).
+      // We must NOT treat it as minor units. Convert rupees → paise by * 100.
+      final rawPrice = i['unit_price'];
+      final priceInRupees = rawPrice is num
+          ? rawPrice.toDouble()
+          : double.tryParse(rawPrice?.toString().replaceAll('null', '') ?? '') ?? 0.0;
+      final priceInCents = (priceInRupees * 100).round();
+
+      // Name: backend maps item_name_snapshot → 'name'
+      final name = _safeStr(i['name']) ??
+          _safeStr(i['item_name_snapshot']) ??
+          _safeStr(i['menu_item_name']) ??
+          'Item';
+
+      // Quantity: backend maps quantity → 'qty'
+      final quantity = ((i['qty'] ?? i['quantity'] ?? 1) as num).toInt();
+
+      // Seat number: preserve from payload if present; default 1 for backward compat
+      final seatNumber = ((i['seat_number'] ?? i['seatNumber'] ?? 1) as num).toInt();
+
+      // Item ID: order_item_snapshots has no id column — backend returns '' always.
+      // Generate a stable deterministic ID from orderId + index to prevent duplicate keys.
+      final itemId = _safeStr(i['id'])?.isNotEmpty == true
+          ? i['id'].toString()
+          : '${orderId}_item_$index';
 
       return {
-        'id': i['id']?.toString() ?? '',
+        'id': itemId,
         'product': {
-          'id': i['menu_item_id']?.toString() ?? i['productId']?.toString() ?? i['id']?.toString() ?? 'unknown',
+          'id': _safeStr(i['menu_item_id']) ??
+              _safeStr(i['productId']) ??
+              '${orderId}_product_$index',
           'name': name,
           'priceInCents': priceInCents,
-          'category': 'Mains',
+          // Do NOT set stale category from menu — use empty string.
+          // The OrderDetails screen does not display category for items from history.
+          'category': '',
           'availableModifiers': [],
         },
-        'quantity': i['quantity'] ?? i['qty'] ?? 1,
+        'quantity': quantity,
         'selectedModifiers': [],
-        'seatNumber': 1,
-        'status': i['status'] ?? 'confirmed',
+        'seatNumber': seatNumber,
+        'status': _safeStr(i['status']) ?? 'queued',
       };
-    }).toList();
+    });
 
     // Translate backend status names to Flutter OrderStatus enum names
-    final backendStatus = payload['status']?.toString() ?? 'pending';
+    final backendStatus = _safeStr(payload['status']) ?? 'pending';
     final flutterStatus = _translateBackendStatus(backendStatus);
 
     return {
-      'id': payload['id'],
-      'tableId': payload['table_id'] ?? payload['tableId'] ?? '',
+      'id': orderId,
+      'tableId': _safeStr(payload['table_id']) ?? _safeStr(payload['tableId']) ?? '',
       'items': items,
       'status': flutterStatus,
-      'createdAt': payload['created_at'] ?? payload['createdAt'] ?? DateTime.now().toIso8601String(),
-      'updatedAt': payload['updated_at'] ?? payload['updatedAt'] ?? DateTime.now().toIso8601String(),
-      'waiterName': payload['staff_name'] ?? payload['waiterName'] ?? 'John Doe',
+      'createdAt': _safeStr(payload['created_at']) ?? _safeStr(payload['createdAt']) ?? DateTime.now().toIso8601String(),
+      'updatedAt': _safeStr(payload['updated_at']) ?? _safeStr(payload['updatedAt']) ?? DateTime.now().toIso8601String(),
+      // Do NOT default to 'John Doe' — use empty string so UI shows 'Unassigned' correctly.
+      'waiterName': _safeStr(payload['staff_name']) ?? _safeStr(payload['waiterName']) ?? '',
       'cancelLogs': [],
       'version_num': payload['version_num'] ?? 1,
       'customer_payment_intent': payload['customer_payment_intent'],
     };
+  }
+
+  /// Returns null for null/empty/literal-'null' strings, otherwise the string value.
+  String? _safeStr(dynamic value) {
+    if (value == null) return null;
+    final s = value.toString();
+    if (s.isEmpty || s == 'null') return null;
+    return s;
   }
 
   /// Translates backend order status strings to Flutter OrderStatus enum names.
