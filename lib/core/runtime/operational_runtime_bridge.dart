@@ -35,6 +35,7 @@ import '../network/realtime_sync_manager.dart';
 import '../../features/auth/presentation/state/auth_notifier.dart';
 import '../../features/orders/providers/orders_providers.dart';
 import '../../features/orders/providers/orders_realtime_provider.dart';
+import '../../core/network/network_providers.dart';
 import '../../features/orders/presentation/state/orders_projection_provider.dart';
 import '../../features/orders/domain/entities/order.dart';
 import '../../features/tables/providers/tables_providers.dart';
@@ -223,8 +224,22 @@ class OperationalRuntimeBridge {
             ? (event.payload['order'] as Map<String, dynamic>)
             : event.payload;
         final status = (orderData['status'] ?? event.payload['status'] ?? event.payload['order_status'])?.toString().toLowerCase();
-        if (status == 'accepted' || status == 'ready' || status == 'ready_for_pickup') {
-          await _handleOrderAlertEvent(event);
+        if (status == 'accepted' || status == 'preparing' || status == 'ready' || status == 'ready_for_pickup') {
+          // Normalize payload keys so _handleOrderAlertEvent receives orderId & status
+          final normalizedPayload = Map<String, dynamic>.from(event.payload);
+          normalizedPayload['orderId'] ??= orderData['id'] ?? orderData['orderId'];
+          normalizedPayload['status'] = status;
+          await _handleOrderAlertEvent(RuntimeEvent(
+            idempotencyKey: event.idempotencyKey,
+            sequenceNumber: event.sequenceNumber,
+            branchId: event.branchId,
+            epochId: event.epochId,
+            type: (status == 'ready' || status == 'ready_for_pickup') 
+                ? RuntimeEventType.orderReadyForPickup 
+                : RuntimeEventType.orderAccepted,
+            payload: normalizedPayload,
+            receivedAt: event.receivedAt,
+          ));
         }
         // Immediately rebuild orders projection so UI gets the updated order
         await _rebuildOrdersProjection();
@@ -257,15 +272,14 @@ class OperationalRuntimeBridge {
         );
         break;
 
-      // ── Order Placement Events (update projection, no alert sound) ──────────
+      // ── Order Placement Events (update projection, no alert popup) ──────────
       case RuntimeEventType.orderAssigned:
       case RuntimeEventType.orderReassigned:
-        // Route to store so order list refreshes, but do NOT trigger an alert sound
         await _store.applyValidatedEvent(event);
         break;
 
-      // ── KDS-triggered Order Alert Domain ─────────────────────────────────────
-      // These fire only when KDS accepts/prepares/marks-ready an order
+      // ── KDS / Status Transition Alert Domain ──────────────────────────────
+      // Fires alert popup and sound when order is accepted on KDS or marked ready
       case RuntimeEventType.orderAccepted:
       case RuntimeEventType.orderPreparing:
       case RuntimeEventType.orderReadyForPickup:
@@ -365,27 +379,77 @@ class OperationalRuntimeBridge {
     }
   }
 
+  /// Fetches complete order details from the backend API and merges them into
+  /// the payload BEFORE the alert is enqueued. This ensures the popup always
+  /// renders with table number, items, and total on first display.
   Future<void> _enrichAlertPayload(Map<String, dynamic> payload) async {
-    // If the realtime payload is incomplete, fetch the complete order before rendering the popup.
-    final orderId = payload['orderId'] ?? payload['id'];
-    if (orderId != null && (payload['itemCount'] == null || payload['itemCount'] == 0 || payload['items'] == null || (payload['items'] as List).isEmpty)) {
+    final orderId = (payload['orderId'] ?? payload['id'])?.toString();
+    if (orderId == null || orderId.isEmpty) return;
+
+    // If the realtime payload is already fully populated, skip the API fetch.
+    final existingItems = payload['items'] as List?;
+    if (existingItems != null && existingItems.isNotEmpty &&
+        payload['totalAmountMinor'] != null && payload['totalAmountMinor'] != 0 &&
+        payload['tableLabel'] != null && payload['tableLabel'] != 'N/A') {
+      debugPrint('[OperationalRuntimeBridge] Alert payload already complete for $orderId — skipping API fetch.');
+      return;
+    }
+
+    // Try up to 3 times (short interval) for DB writes to commit before fetching
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      if (attempt > 1) {
+        await Future.delayed(Duration(milliseconds: attempt == 2 ? 400 : 800));
+      }
       try {
-        final ordersRepo = _ref.read(ordersRepositoryProvider);
-        final order = await ordersRepo.getOrderById(orderId.toString());
-        if (order != null) {
-          payload['itemCount'] = order.items.length;
-          payload['totalAmountMinor'] = order.totalPrice.amountInCents;
-          payload['items'] = order.items.map((i) => {
-            'name': i.product.name,
-            'quantity': i.quantity,
-          }).toList();
-          debugPrint('[OperationalRuntimeBridge] Enriched incomplete alert payload with ${order.items.length} items');
+        final dio = _ref.read(dioClientProvider);
+        final response = await dio.get('/api/v1/orders/$orderId');
+
+        if (response.statusCode == 200 && response.data['success'] == true) {
+          final orderData = (response.data['data']?['order'] ??
+              response.data['data']) as Map<String, dynamic>?;
+
+          if (orderData == null) continue;
+
+          // Extract items — backend returns them as [{name, qty, unit_price, line_total}]
+          final rawItems = orderData['items'] as List? ?? [];
+          final alertItems = <Map<String, dynamic>>[];
+          for (final item in rawItems) {
+            final m = item as Map<String, dynamic>;
+            alertItems.add({
+              'name': (m['name'] ?? m['item_name_snapshot'] ?? 'Item').toString(),
+              'quantity': ((m['qty'] ?? m['quantity'] ?? 1) as num).toInt(),
+            });
+          }
+
+          // Extract total — backend returns total_amount in rupees (float)
+          final totalRupees = (orderData['total_amount'] as num? ?? 0).toDouble();
+          final totalMinor = (totalRupees * 100).round();
+
+          // Extract table label — backend resolves display_name or table_number
+          final tableLabel = (orderData['table_number'] ?? orderData['table_label'])?.toString() ?? '';
+
+          if (alertItems.isNotEmpty || totalMinor > 0) {
+            payload['items'] = alertItems;
+            payload['itemCount'] = alertItems.length;
+            payload['totalAmountMinor'] = totalMinor;
+            if (tableLabel.isNotEmpty && tableLabel != 'N/A') {
+              payload['tableLabel'] = tableLabel;
+              payload['tableNumber'] = tableLabel;
+            }
+            debugPrint('[OperationalRuntimeBridge] Enriched alert payload for $orderId on attempt $attempt: '
+                '${alertItems.length} items, total: $totalMinor paise, table: $tableLabel');
+            return; // Success — exit retry loop
+          }
+          // items not ready yet — retry
         }
       } catch (e) {
-        debugPrint('[OperationalRuntimeBridge] Failed to fetch complete order for alert: $e');
+        debugPrint('[OperationalRuntimeBridge] _enrichAlertPayload attempt $attempt failed for $orderId: $e');
       }
     }
+    debugPrint('[OperationalRuntimeBridge] _enrichAlertPayload exhausted retries for $orderId — popup will show with available data.');
   }
+
+
 
 
 

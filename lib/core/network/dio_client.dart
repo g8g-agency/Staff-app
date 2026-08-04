@@ -164,7 +164,12 @@ class DioClient {
 
   Exception _handleDioError(DioException error) {
     final response = error.response;
-    final message = response?.data?['message'] ?? error.message ?? 'Unknown network error';
+    String? message;
+    if (response?.data != null && response!.data is Map) {
+      final data = response.data as Map;
+      message = data['error']?['message'] ?? data['message'] ?? data['error']?.toString();
+    }
+    message ??= error.message ?? 'Unknown network error';
     return ServerException(
       message: message,
       statusCode: response?.statusCode,

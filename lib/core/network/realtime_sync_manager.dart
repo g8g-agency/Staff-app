@@ -311,16 +311,8 @@ class RealtimeSyncManager {
     );
 
     if (_reconnectAttempts >= _maxReconnectAttempts) {
-      // Max retries exhausted — enter critical state
-      debugPrint(
-        '[SYNC] Max reconnect attempts exhausted. Entering CRITICAL state.',
-      );
-      _updateState(
-        RealtimeConnectionState.critical,
-        attempts: _reconnectAttempts,
-        error: 'Unable to reach server. Manual intervention required.',
-      );
-      return;
+      debugPrint('[SYNC] Max reconnect attempts reached. Resetting backoff counter to keep retrying...');
+      _reconnectAttempts = 1;
     }
 
     // Determine back-off delay

@@ -66,13 +66,15 @@ class AuthRepository {
       return null;
     } catch (e) {
       debugPrint('[AuthRepository] adminLogin error: $e');
-      if (e is ServerException && e.statusCode == null) {
-        throw const AuthException(message: 'Cannot reach server. Check your connection.');
+      if (e is ServerException) {
+        if (e.statusCode == 401 || e.statusCode == 422 || e.statusCode == 400) {
+          throw AuthException(message: e.message.isNotEmpty ? e.message : 'Invalid credentials or request data');
+        }
+        if (e.statusCode != null) {
+          throw AuthException(message: e.message);
+        }
       }
-      if (e is ServerException && e.statusCode == 401) {
-        throw const AuthException(message: 'Invalid email or password');
-      }
-      throw AuthException(message: e.toString());
+      throw const AuthException(message: 'Cannot reach server. Check your connection.');
     }
   }
 

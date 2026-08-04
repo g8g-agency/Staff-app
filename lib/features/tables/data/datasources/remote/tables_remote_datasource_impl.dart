@@ -24,6 +24,8 @@ class TablesRemoteDatasourceImpl implements TablesRemoteDatasource {
 
   Future<String> _getToken() async {
     const storage = SecureLocalStorage();
+    final runtimeToken = await storage.read('runtime_token');
+    if (runtimeToken != null && runtimeToken.isNotEmpty) return runtimeToken;
     return await storage.read('access_token') ?? '';
   }
 
@@ -37,7 +39,6 @@ class TablesRemoteDatasourceImpl implements TablesRemoteDatasource {
         queryParameters: {
           'branch_id': _branchId,
           'limit': 100,
-          'is_active': true,
         },
         options: Options(
           headers: {'Authorization': 'Bearer $token'},
@@ -45,7 +46,10 @@ class TablesRemoteDatasourceImpl implements TablesRemoteDatasource {
         ),
       );
 
-      final rawList = (response.data['data'] as List<dynamic>?) ?? [];
+      final resData = response.data['data'];
+      final List<dynamic> rawList = resData is List
+          ? resData
+          : (resData is Map && resData['data'] is List ? resData['data'] as List<dynamic> : []);
       final tables = rawList
           .map((json) => TableDto.fromMap(json as Map<String, dynamic>))
           .toList();
