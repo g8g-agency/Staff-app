@@ -102,10 +102,10 @@ class _StaffLoginScreenState extends ConsumerState<StaffLoginScreen> {
       final success = await ref
           .read(authNotifierProvider.notifier)
           .login(employeeId, pin);
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
-      if (!mounted) return;
       if (success) {
         context.go('/notifications');
       } else {

@@ -62,7 +62,8 @@ class WaiterCallsRepositoryImpl implements WaiterCallsRepository {
   Future<WaiterCall> _mapToDomain(Map<String, dynamic> json) async {
     final id = json['id'] as String;
     final tableId = json['table_id'] as String;
-    final tableLabel = await _resolveTableLabel(tableId);
+    final tableNumber = json['table_number']?.toString();
+    final tableLabel = tableNumber != null ? 'Table $tableNumber' : await _resolveTableLabel(tableId);
     
     final rawType = json['type'] as String? ?? 'service';
     CallType type = CallType.service;

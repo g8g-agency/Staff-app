@@ -89,8 +89,19 @@ class RuntimeEvent extends Equatable {
       case 'TABLE_WAITER_ASSIGNED': return RuntimeEventType.tableWaiterAssigned;
       case 'order_update':        return RuntimeEventType.orderUpdate;
       case 'order_delete':        return RuntimeEventType.orderDelete;
-      case 'waiter_call':         return RuntimeEventType.waiterCall;
-      case 'waiter_call_delete':  return RuntimeEventType.waiterCallDelete;
+      case 'waiter_call':
+      case 'waiter_call.created':
+      case 'WAITER_CALL_CREATED':
+      case 'waiter_call_created':
+      case 'waiter_call.acknowledged':
+      case 'WAITER_CALL_ACKNOWLEDGED':
+      case 'waiter_call.resolved':
+      case 'WAITER_CALL_RESOLVED':
+        return RuntimeEventType.waiterCall;
+      case 'waiter_call_delete':
+      case 'waiter_call.delete':
+      case 'WAITER_CALL_DELETED':
+        return RuntimeEventType.waiterCallDelete;
       case 'kitchen_item_update': return RuntimeEventType.kitchenItemUpdate;
       case 'kitchen_queue_update':return RuntimeEventType.kitchenQueueUpdate;
       case 'reservation_update':  return RuntimeEventType.reservationUpdate;

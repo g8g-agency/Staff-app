@@ -41,6 +41,29 @@ class _OrderAlertListenerState extends ConsumerState<OrderAlertListener> {
   String? _activeReadyAlertId;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final currentAlert = ref.read(currentOrderAlertProvider);
+      if (currentAlert != null && _currentOverlay == null) {
+        _showAlertOverlay(currentAlert);
+      }
+      final currentReady = ref.read(currentReadyAlertProvider);
+      if (currentReady != null && _currentReadyOverlay == null) {
+        _showReadyOverlay(currentReady);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _dismissOverlay();
+    _dismissReadyOverlay();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     // Keep real-time orders connection alive globally while the shell is mounted
     ref.watch(ordersRealtimeProvider);
@@ -93,7 +116,9 @@ class _OrderAlertListenerState extends ConsumerState<OrderAlertListener> {
   }
 
   void _dismissOverlay() {
-    OrderAlertAudioManager().stopAlert();
+    if (ref.read(pendingOrderAlertsProvider).isEmpty) {
+      OrderAlertAudioManager().stopAlert();
+    }
     _currentOverlay?.remove();
     _currentOverlay = null;
     _activeAlertId = null;
@@ -126,13 +151,6 @@ class _OrderAlertListenerState extends ConsumerState<OrderAlertListener> {
     _currentReadyOverlay?.remove();
     _currentReadyOverlay = null;
     _activeReadyAlertId = null;
-  }
-
-  @override
-  void dispose() {
-    _dismissOverlay();
-    _dismissReadyOverlay();
-    super.dispose();
   }
 }
 
@@ -253,8 +271,10 @@ class _IncomingOrderAlertOverlayState
       ref.read(orderAlertNotifierProvider.notifier).dismissAlert(alert.orderId);
       widget.onAccepted();
       if (alert.tableId != null && mounted) {
-        context.go('/tables/${alert.tableId}');
+        unawaited(context.push('/tables/${alert.tableId}'));
       }
+
+
     } else {
       // TABLE_ASSIGNMENT_REQUIRED (or fallback): attempt to assign waiter
       final success = await ref

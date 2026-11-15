@@ -12,6 +12,7 @@ import '../../../orders/domain/entities/order_item.dart';
 import '../../../../shared/models/money.dart';
 import '../../domain/entities/restaurant_table.dart';
 import '../state/table_grid_notifier.dart';
+import '../../providers/table_bill_provider.dart';
 
 class TableDetailScreen extends ConsumerWidget {
   final String tableId;
@@ -39,8 +40,15 @@ class TableDetailScreen extends ConsumerWidget {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_rounded, color: isDark ? Colors.white54 : const Color(0xFF5D3F3C)),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/tables');
+            }
+          },
         ),
+
         title: tableGridStateAsync.when(
           data: (gridState) {
             final table = gridState.tables.firstWhere(
@@ -73,32 +81,43 @@ class TableDetailScreen extends ConsumerWidget {
           }
           final table = gridState.tables[tableIndex];
 
-          // Collect all distinct active orders for this table
+          // Collect distinct active orders and delivered historical orders for this table
           final activeOrdersMap = <String, Order>{};
+          final deliveredOrdersMap = <String, Order>{};
+
           for (final o in projectedOrders) {
-            if ((o.tableId == tableId || o.tableId.trim() == tableId.trim()) &&
-                o.status != OrderStatus.completed &&
-                o.status != OrderStatus.cancelled) {
-              activeOrdersMap[o.id] = o;
+            if (o.tableId == tableId || o.tableId.trim() == tableId.trim()) {
+              if (o.status != OrderStatus.delivered &&
+                  o.status != OrderStatus.completed &&
+                  o.status != OrderStatus.cancelled) {
+                activeOrdersMap[o.id] = o;
+              } else if (o.status == OrderStatus.delivered) {
+                deliveredOrdersMap[o.id] = o;
+              }
             }
           }
           for (final o in liveOrders) {
-            if ((o.tableId == tableId || o.tableId.trim() == tableId.trim()) &&
-                o.status != OrderStatus.completed &&
-                o.status != OrderStatus.cancelled) {
-              activeOrdersMap[o.id] = o;
+            if (o.tableId == tableId || o.tableId.trim() == tableId.trim()) {
+              if (o.status != OrderStatus.delivered &&
+                  o.status != OrderStatus.completed &&
+                  o.status != OrderStatus.cancelled) {
+                activeOrdersMap[o.id] = o;
+              } else if (o.status == OrderStatus.delivered) {
+                deliveredOrdersMap[o.id] = o;
+              }
             }
           }
           final activeTableOrders = activeOrdersMap.values.toList();
+          final deliveredTableOrders = deliveredOrdersMap.values.toList();
 
           return activeOrderAsync.when(
             loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFE31E24))),
             error: (err, stack) => Center(child: Text('Error loading active session: $err')),
             data: (order) {
               if (activeTableOrders.isEmpty) {
-                return _buildEmptyState(context, ref, table, theme, isDark);
+                return _buildEmptyState(context, ref, table, theme, isDark, deliveredTableOrders);
               }
-              return _buildActiveSession(context, ref, table, activeTableOrders, isDark);
+              return _buildActiveSession(context, ref, table, activeTableOrders, deliveredTableOrders, isDark);
             },
           );
         },
@@ -106,7 +125,14 @@ class TableDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, WidgetRef ref, RestaurantTable table, ThemeData theme, bool isDark) {
+  Widget _buildEmptyState(
+    BuildContext context,
+    WidgetRef ref,
+    RestaurantTable table,
+    ThemeData theme,
+    bool isDark, [
+    List<Order> deliveredTableOrders = const [],
+  ]) {
     String message = 'Table is available for seating.';
     IconData icon = Icons.table_restaurant_rounded;
     Color iconColor = isDark ? Colors.white24 : const Color(0xFFBFC8D0);
@@ -120,7 +146,7 @@ class TableDetailScreen extends ConsumerWidget {
       iconColor = const Color(0xFFE31E24).withValues(alpha: 0.5);
     }
 
-    return Center(
+    final emptyHero = Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -140,9 +166,38 @@ class TableDetailScreen extends ConsumerWidget {
         ],
       ),
     );
+
+    if (deliveredTableOrders.isEmpty) {
+      return emptyHero;
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            children: [
+              const SizedBox(height: 32),
+              emptyHero,
+              const SizedBox(height: 48),
+              _buildOrderHistorySection(context, ref, deliveredTableOrders, isDark),
+              const SizedBox(height: 64),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
-  Widget _buildActiveSession(BuildContext context, WidgetRef ref, RestaurantTable table, List<Order> activeTableOrders, bool isDark) {
+  Widget _buildActiveSession(
+    BuildContext context,
+    WidgetRef ref,
+    RestaurantTable table,
+    List<Order> activeTableOrders,
+    List<Order> deliveredTableOrders,
+    bool isDark,
+  ) {
     final loggedInStaffId = ref.watch(authNotifierProvider).loggedInStaff?.id;
     final isUnassigned = table.assignedStaffId == null;
     final isAssignedToOther = !isUnassigned && table.assignedStaffId != loggedInStaffId;
@@ -162,7 +217,7 @@ class TableDetailScreen extends ConsumerWidget {
     // If no active orders exist for this table, show vacant state
     if (activeTableOrders.isEmpty) {
       final theme = Theme.of(context);
-      return _buildEmptyState(context, ref, table, theme, isDark);
+      return _buildEmptyState(context, ref, table, theme, isDark, deliveredTableOrders);
     }
 
     return Stack(
@@ -177,7 +232,10 @@ class TableDetailScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Table Stats Row
-                    _buildStatsRow(table, activeTableOrders, isDark),
+                    _buildStatsRow(ref, table, activeTableOrders, isDark),
+
+                    const SizedBox(height: 16),
+                    _AuthoritativeBillCard(tableId: table.id, isDark: isDark),
                     
                     if (isUnassigned)
                       Padding(
@@ -186,13 +244,16 @@ class TableDetailScreen extends ConsumerWidget {
                       ),
                     const SizedBox(height: 32),
 
-
-                    // Render each order as a bill/receipt
+                    // Render each active order as a bill/receipt
                     ...activeTableOrders.map((order) {
                       final orderIndex = activeTableOrders.indexOf(order) + 1;
                       return _buildOrderBill(ref, order, orderIndex, activeTableOrders, isDark);
                     }),
 
+                    if (deliveredTableOrders.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      _buildOrderHistorySection(context, ref, deliveredTableOrders, isDark),
+                    ],
 
                     const SizedBox(height: 120), // Bottom padding for actions footer
                   ],
@@ -205,7 +266,60 @@ class TableDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatsRow(RestaurantTable table, List<Order> activeTableOrders, bool isDark) {
+  Widget _buildOrderHistorySection(
+    BuildContext context,
+    WidgetRef ref,
+    List<Order> deliveredOrders,
+    bool isDark,
+  ) {
+    if (deliveredOrders.isEmpty) return const SizedBox.shrink();
+
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        collapsedBackgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+        ),
+        collapsedShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+        ),
+        leading: const Icon(Icons.history_rounded, color: Color(0xFF166534)),
+        title: Text(
+          'Order History (${deliveredOrders.length} Delivered)',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
+          ),
+        ),
+        subtitle: Text(
+          'Delivered orders for this table session',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            color: isDark ? Colors.white54 : const Color(0xFF64748B),
+          ),
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: deliveredOrders.asMap().entries.map((entry) {
+                return _buildOrderBill(ref, entry.value, entry.key + 1, deliveredOrders, isDark);
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsRow(WidgetRef ref, RestaurantTable table, List<Order> activeTableOrders, bool isDark) {
     int totalCents = 0;
     for (final o in activeTableOrders) {
       for (final item in o.items) {
@@ -214,7 +328,18 @@ class TableDetailScreen extends ConsumerWidget {
         }
       }
     }
-    final formattedTotal = Money(amountInCents: totalCents).formatted;
+    final localTaxCents = (totalCents * 0.05).round();
+    String formattedTotal = Money(amountInCents: totalCents + localTaxCents).formatted;
+
+    // Authoritative backend reconciliation: if bill is loaded, use exact backend grand total
+    final billAsync = ref.watch(tableBillProvider(table.id));
+    final bill = billAsync.asData?.value;
+    if (bill != null && bill['grand_total_minor'] != null) {
+      final grandTotalMinor = (bill['grand_total_minor'] as num).toDouble();
+      final currencyCode = bill['currency_code']?.toString() ?? 'INR';
+      final currencySymbol = currencyCode == 'USD' ? '\$' : '₹';
+      formattedTotal = '$currencySymbol${(grandTotalMinor / 100).toStringAsFixed(2)}';
+    }
 
     // Elapsed time since first order
     DateTime? earliest;
@@ -673,6 +798,164 @@ class _ClaimTableButtonState extends ConsumerState<_ClaimTableButton> {
                 ),
               ),
       ),
+    );
+  }
+}
+
+class _AuthoritativeBillCard extends ConsumerWidget {
+  final String tableId;
+  final bool isDark;
+
+  const _AuthoritativeBillCard({required this.tableId, required this.isDark});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final billAsync = ref.watch(tableBillProvider(tableId));
+
+    return billAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: LinearProgressIndicator(color: Color(0xFFE31E24)),
+      ),
+      error: (err, stack) => const SizedBox.shrink(),
+      data: (bill) {
+        if (bill == null) return const SizedBox.shrink();
+
+        final billNumber = bill['bill_number']?.toString() ?? 'N/A';
+        final grandTotalMinor = (bill['grand_total_minor'] as num?)?.toDouble() ?? 0.0;
+        final subtotalMinor = (bill['subtotal_minor'] as num?)?.toDouble() ?? 0.0;
+        final taxTotalMinor = (bill['tax_total_minor'] as num?)?.toDouble() ?? 0.0;
+        final status = bill['status']?.toString() ?? 'UNPAID';
+        final currencyCode = bill['currency_code']?.toString() ?? 'INR';
+        final currencySymbol = currencyCode == 'USD' ? '\$' : '₹';
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 24),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: status == 'PAID'
+                  ? const Color(0xFF10B981)
+                  : const Color(0xFFE31E24).withValues(alpha: 0.3),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.receipt_long_rounded, color: Color(0xFFE31E24), size: 22),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Authoritative Bill #$billNumber',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: status == 'PAID'
+                          ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                          : const Color(0xFFE31E24).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      status,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        color: status == 'PAID' ? const Color(0xFF10B981) : const Color(0xFFE31E24),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Subtotal:',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                    ),
+                  ),
+                  Text(
+                    '$currencySymbol${(subtotalMinor / 100).toStringAsFixed(2)}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Tax:',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                    ),
+                  ),
+                  Text(
+                    '$currencySymbol${(taxTotalMinor / 100).toStringAsFixed(2)}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Grand Total:',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  Text(
+                    '$currencySymbol${(grandTotalMinor / 100).toStringAsFixed(2)}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFFE31E24),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

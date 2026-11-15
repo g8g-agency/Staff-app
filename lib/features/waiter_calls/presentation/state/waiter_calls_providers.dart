@@ -41,6 +41,9 @@ class WaiterCallsListNotifier extends AsyncNotifier<List<WaiterCall>> {
       state = AsyncData(calls);
     });
 
+    // Immediately fetch active calls from remote so the feed is never blank on mount
+    unawaited(_repository.fetchActiveCalls());
+
     return _repository.getCachedWaiterCalls();
   }
 

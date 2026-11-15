@@ -63,6 +63,14 @@ class RealtimeEventRouter {
         type == RuntimeEventType.orderReadyForPickup;
   }
 
+  /// Whether the event carries the backend server epoch (Unix ms) and should
+  /// bypass client UUID-based epoch matching.
+  bool _shouldBypassEpochValidation(RuntimeEventType type) {
+    return _isAlertEvent(type) ||
+        type == RuntimeEventType.waiterCall ||
+        type == RuntimeEventType.waiterCallDelete;
+  }
+
   /// Route a realtime event through the validation pipeline.
   Future<void> routeEvent(RuntimeEvent event) async {
     debugPrint(
@@ -72,10 +80,9 @@ class RealtimeEventRouter {
     final isAlert = _isAlertEvent(event.type);
 
     // Step 1: Epoch validation
-    // Alert events (ORDER_ASSIGNED, ORDER_REASSIGNED, ORDER_READY_FOR_PICKUP)
-    // are push notifications — they carry the backend server_epoch (Unix ms)
+    // Alert events and waiter calls carry the backend server_epoch (Unix ms)
     // which will never match the client UUID epoch. Skip this guard for them.
-    if (!isAlert && !_epochManager.isEventEpochValid(event.epochId)) {
+    if (!_shouldBypassEpochValidation(event.type) && !_epochManager.isEventEpochValid(event.epochId)) {
       debugPrint(
         '[RealtimeEventRouter] REJECTED: Stale epoch ${event.epochId}',
       );
@@ -85,6 +92,7 @@ class RealtimeEventRouter {
     // Step 1.5: Branch validation
     // Alert events are targeted notifications — they should be delivered
     // even if the branch resolver has not yet been activated.
+    // Waiter calls are branch-scoped and must strictly pass branch validation.
     if (!isAlert && !_branchIsolationResolver.isEventBranchValid(event)) {
       debugPrint(
         '[RealtimeEventRouter] REJECTED: Cross-branch state leakage detected. Event branch: ${event.branchId}',

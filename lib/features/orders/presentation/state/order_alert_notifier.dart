@@ -10,6 +10,7 @@ import '../../domain/entities/order_alert_model.dart';
 import '../../../../core/network/network_providers.dart';
 import '../../services/order_action_service.dart';
 import '../../../auth/presentation/state/auth_notifier.dart';
+import '../services/order_alert_audio_manager.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // State
@@ -236,6 +237,9 @@ class OrderAlertNotifier extends StateNotifier<OrderAlertState> {
     state = state.copyWith(
       queue: state.queue.where((a) => a.orderId != orderId).toList(),
     );
+    if (!state.queue.any((a) => a.status == OrderAlertStatus.pending)) {
+      unawaited(OrderAlertAudioManager().stopAlert());
+    }
   }
 
   /// Staff accepts the notification and self-assigns to the table.
@@ -278,6 +282,11 @@ class OrderAlertNotifier extends StateNotifier<OrderAlertState> {
         responseTimes: [...state.responseTimes, elapsed],
       );
       _removeAlertAfterDelay(orderId);
+      // Stop looping audio only when all pending alerts have been addressed
+      final remainingPending = state.queue.where((a) => a.orderId != orderId && a.status == OrderAlertStatus.pending).length;
+      if (remainingPending == 0) {
+        unawaited(OrderAlertAudioManager().stopAlert());
+      }
       return true;
     } catch (e) {
       final msg = e.toString();
@@ -287,6 +296,10 @@ class OrderAlertNotifier extends StateNotifier<OrderAlertState> {
         _cancelTimeoutTimer(orderId);
         _updateAlertStatus(orderId, OrderAlertStatus.accepted); // visual dismiss
         _removeAlertAfterDelay(orderId);
+        final remainingPending = state.queue.where((a) => a.orderId != orderId && a.status == OrderAlertStatus.pending).length;
+        if (remainingPending == 0) {
+          unawaited(OrderAlertAudioManager().stopAlert());
+        }
         return false;
       }
       debugPrint('[OrderAlert] Failed to assign waiter for order $orderId: $e');
@@ -315,6 +328,11 @@ class OrderAlertNotifier extends StateNotifier<OrderAlertState> {
       _updateAlertStatus(orderId, OrderAlertStatus.passed);
       state = state.copyWith(totalPassed: state.totalPassed + 1);
       _removeAlertAfterDelay(orderId);
+      // Stop looping audio only when all pending alerts have been addressed
+      final remainingPending = state.queue.where((a) => a.orderId != orderId && a.status == OrderAlertStatus.pending).length;
+      if (remainingPending == 0) {
+        unawaited(OrderAlertAudioManager().stopAlert());
+      }
       return true;
     } catch (e) {
       debugPrint('[OrderAlert] Failed to pass order $orderId: $e');

@@ -1,8 +1,10 @@
 // lib/bootstrap/bootstrap.dart
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:talker_flutter/talker_flutter.dart';
@@ -16,6 +18,11 @@ import '../core/utils/logger.dart';
 import '../app/app.dart';
 import '../app/observers/provider_observer.dart';
 import '../features/auth/presentation/state/auth_notifier.dart';
+
+const _sentryDsn = String.fromEnvironment(
+  'SENTRY_DSN',
+  defaultValue: 'https://f2bb43028d8bab2e1f4c6f7a20b28591@o4512209236983040.ingest.sentry.io/4512209236983888',
+);
 
 void bootstrap({
   required Environment environment,
@@ -31,7 +38,7 @@ void bootstrap({
     ),
   );
 
-  runZonedGuarded(() async {
+  Future<void> appRunner() async {
     WidgetsFlutterBinding.ensureInitialized();
 
     // Initialize environment configurations
@@ -48,7 +55,7 @@ void bootstrap({
     // Initialize Supabase instance using SecureTokenStorage (Keychain/Keystore wrapper)
     await Supabase.initialize(
       url: supabaseUrl ?? 'https://placeholder.supabase.co',
-      anonKey: supabaseAnonKey ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder',
+      anonKey: anonKey ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder',
       authOptions: const FlutterAuthClientOptions(
         localStorage: SecureLocalStorage(),
       ),
@@ -126,9 +133,32 @@ void bootstrap({
         child: const OrderlyyApp(),
       ),
     );
-  }, (error, stack) {
-    talker.handle(error, stack, '[Bootstrap Error] Unhandled Exception');
-  });
+  }
+
+  if (enableSentry) {
+    SentryFlutter.init(
+      (options) {
+        options.dsn = _sentryDsn;
+        options.environment = environment.name;
+        options.release = 'orderlyy_app@1.0.0+1';
+        options.tracesSampleRate = 0.2;
+        // Drop every event from debug builds, including those captured by
+        // Sentry's own integrations (FlutterError, PlatformDispatcher, zones),
+        // which bypass the kDebugMode guard in the runZonedGuarded handler.
+        options.beforeSend = (event, hint) => kDebugMode ? null : event;
+      },
+      appRunner: () => runZonedGuarded(appRunner, (error, stack) {
+        talker.handle(error, stack, '[Bootstrap Error] Unhandled Exception');
+        if (!kDebugMode) {
+          Sentry.captureException(error, stackTrace: stack);
+        }
+      }),
+    );
+  } else {
+    runZonedGuarded(appRunner, (error, stack) {
+      talker.handle(error, stack, '[Bootstrap Error] Unhandled Exception');
+    });
+  }
 }
 
 // Global provider for shared preferences to inject into other data sources
