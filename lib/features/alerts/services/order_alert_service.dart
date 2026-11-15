@@ -1,21 +1,27 @@
 // lib/features/alerts/services/order_alert_service.dart
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import '../../orders/presentation/services/order_alert_audio_manager.dart';
 
 class OrderAlertService {
   final AudioPlayer _audioPlayer;
 
-  OrderAlertService() : _audioPlayer = AudioPlayer() {
-    // Optionally pre-load sounds if needed, but simple playback is fine for now
-  }
+  OrderAlertService() : _audioPlayer = AudioPlayer();
 
   Future<void> playNewOrderAlert() async {
     try {
-      // In a real app, you'd place a sound in assets/sounds/order_alert.wav
-      // For pilot, we assume the asset exists or fail gracefully
-      await _audioPlayer.play(AssetSource('sounds/order_alert.wav'));
+      // Delegate to looping audio + vibration manager until acknowledged
+      await OrderAlertAudioManager().startAlert();
     } catch (e) {
       debugPrint('[OrderAlertService] Failed to play new order sound: $e');
+    }
+  }
+
+  Future<void> stopAlert() async {
+    try {
+      await OrderAlertAudioManager().stopAlert();
+    } catch (e) {
+      debugPrint('[OrderAlertService] Failed to stop order alert: $e');
     }
   }
 

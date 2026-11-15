@@ -196,17 +196,45 @@ class DeterministicProjectionStore {
   }
 
   WaiterCall _parseWaiterCall(Map<String, dynamic> payload) {
+    final id = (payload['id'] ?? '') as String;
+    final tableId = (payload['table_id'] ?? payload['tableId'] ?? '') as String;
+    final tableNumber = payload['table_number']?.toString();
+    final tableLabel = tableNumber != null ? 'Table $tableNumber' : ((payload['tableLabel'] ?? 'Table $tableId') as String);
+
+    final rawType = (payload['type'] ?? 'service').toString().toLowerCase();
+    CallType type = CallType.service;
+    if (rawType == 'bill' || rawType == 'billrequest') {
+      type = CallType.billRequest;
+    } else if (rawType == 'other' || rawType == 'assistance') {
+      type = CallType.assistance;
+    } else if (rawType == 'issuereport' || rawType == 'issue_report') {
+      type = CallType.issueReport;
+    }
+
+    final rawStatus = (payload['status'] ?? 'pending').toString().toLowerCase();
+    CallStatus status = CallStatus.pending;
+    if (rawStatus == 'acknowledged') {
+      status = CallStatus.acknowledged;
+    } else if (rawStatus == 'resolved') {
+      status = CallStatus.resolved;
+    } else if (rawStatus == 'escalated') {
+      status = CallStatus.escalated;
+    }
+
+    final rawTime = payload['created_at'] ?? payload['timestamp'] ?? DateTime.now().toIso8601String();
+    final timestamp = DateTime.tryParse(rawTime.toString()) ?? DateTime.now();
+
     return WaiterCall(
-      id: payload['id'] as String,
-      tableId: payload['tableId'] as String,
-      tableLabel: payload['tableLabel'] as String,
-      type: CallType.values.firstWhere((e) => e.name == payload['type'] as String),
-      status: CallStatus.values.firstWhere((e) => e.name == payload['status'] as String),
-      customerNote: payload['customerNote'] as String?,
-      timestamp: DateTime.parse(payload['timestamp'] as String),
-      waiterId: payload['waiterId'] as String?,
-      waiterName: payload['waiterName'] as String?,
-      isVip: payload['isVip'] as bool? ?? false,
+      id: id,
+      tableId: tableId,
+      tableLabel: tableLabel,
+      type: type,
+      status: status,
+      customerNote: (payload['notes'] ?? payload['customerNote']) as String?,
+      timestamp: timestamp,
+      waiterId: (payload['acknowledged_by'] ?? payload['waiterId']) as String?,
+      waiterName: (payload['waiterName'] ?? payload['waiter_name']) as String?,
+      isVip: payload['is_vip'] as bool? ?? payload['isVip'] as bool? ?? false,
     );
   }
 }

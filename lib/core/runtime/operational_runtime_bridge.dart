@@ -252,6 +252,10 @@ class OperationalRuntimeBridge {
       case RuntimeEventType.staffPresenceUpdate:
       case RuntimeEventType.staffPresenceDelete:
         await _store.applyValidatedEvent(event);
+        if (event.type == RuntimeEventType.waiterCall || event.type == RuntimeEventType.waiterCallDelete) {
+          final calls = _store.getAuthoritativeWaiterCalls();
+          await _ref.read(waiterCallsRepositoryProvider).syncWaiterCalls(calls);
+        }
         break;
 
       // ── Kitchen Domain ────────────────────────────────────────────────────
@@ -332,20 +336,19 @@ class OperationalRuntimeBridge {
       final orderId = payload['orderId'] as String? ?? '';
       final notifier = _ref.read(orderAlertNotifierProvider.notifier);
 
-      // Check local tracking first (most reliable — set when waiter taps Accept)
-      final isMyOrder = orderId.isNotEmpty
-          ? notifier.isMyAcceptedOrder(orderId)
-          : true; // no ID → broadcast to all as fallback
+      // Check local tracking first (set when waiter taps Accept)
+      final isMyOrder = orderId.isNotEmpty && notifier.isMyAcceptedOrder(orderId);
 
       // Also allow if acceptedByStaffId matches (backend sends it when available)
       final acceptedByStaffId =
           (payload['acceptedByStaffId'] ?? payload['assignedStaffId']) as String?;
       final isTargetedToMe =
           acceptedByStaffId != null && acceptedByStaffId == currentStaffId;
+      final isBroadcast = acceptedByStaffId == null;
 
-      if (!isMyOrder && !isTargetedToMe && orderId.isNotEmpty) {
+      if (!isMyOrder && !isTargetedToMe && !isBroadcast && orderId.isNotEmpty) {
         debugPrint(
-          '[OperationalRuntimeBridge] ORDER_READY_FOR_PICKUP for order $orderId — not mine. Ignoring.',
+          '[OperationalRuntimeBridge] ORDER_READY_FOR_PICKUP for order $orderId — assigned to other staff ($acceptedByStaffId). Ignoring.',
         );
         return;
       }
@@ -479,10 +482,15 @@ class OperationalRuntimeBridge {
       case 'TABLE_WAITER_ASSIGNED':
         return RuntimeEventType.tableWaiterAssigned;
       case 'table_update':
+      case 'table.updated':
+      case 'table_updated':
         return RuntimeEventType.tableUpdate;
       case 'table_delete':
         return RuntimeEventType.tableDelete;
       case 'order_update':
+      case 'order.updated':
+      case 'order.created':
+      case 'order_created':
         return RuntimeEventType.orderUpdate;
       case 'order_delete':
         return RuntimeEventType.orderDelete;
@@ -527,6 +535,7 @@ class OperationalRuntimeBridge {
       case 'ORDER_READY_FOR_PICKUP':
       case 'order_ready_for_pickup':
       case 'order_ready':
+      case 'order.ready':
         return RuntimeEventType.orderReadyForPickup;
       default:
         return RuntimeEventType.unknown;
@@ -736,11 +745,11 @@ class OperationalRuntimeBridge {
   }
 
   Future<void> _rebuildStaffProjection() async {
-    debugPrint('[OperationalRuntimeBridge] Full rebuild: staff');
+    // shortcut: not yet implemented, wire StaffRepository.sync when staff events added
   }
 
   Future<void> _rebuildAlertsProjection() async {
-    debugPrint('[OperationalRuntimeBridge] Full rebuild: alerts');
+    // shortcut: not yet implemented, wire AlertsRepository.sync when alerts added
   }
 }
 
